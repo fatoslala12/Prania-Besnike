@@ -71,6 +71,15 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!canAccessTask(accessOf(session), existing)) {
     return NextResponse.json({ error: "Nuk keni të drejtë" }, { status: 403 });
   }
+  if (
+    existing.status === "PERFUNDUAR" &&
+    (managerOnly || patch.orgUnit !== undefined || patch.status === "PERFUNDUAR")
+  ) {
+    return NextResponse.json(
+      { error: "Çështja është e mbyllur. Rihapeni që ta ri-delegoni ose ndryshoni." },
+      { status: 409 },
+    );
+  }
 
   const actor = actorOf(session);
   const task = await updateTask(id, patch, actor);

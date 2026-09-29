@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { Lock, RotateCcw } from "lucide-react";
 import {
   STATUS_LABELS,
   ROLE_LABELS,
@@ -117,6 +118,9 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
   const [redelegating, setRedelegating] = useState(false);
   const [redelegateTo, setRedelegateTo] = useState("");
   const [redelegateNote, setRedelegateNote] = useState("");
+  const [reopening, setReopening] = useState(false);
+  const [reopenNote, setReopenNote] = useState("");
+  const closed = committedStatus === "PERFUNDUAR";
 
   const unitMembers = useMemo(() => {
     if (!orgUnit) return [];
@@ -176,6 +180,36 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     } else {
       setMsg({ ok: true, text: "U ruajt." });
     }
+    router.refresh();
+  }
+
+  async function reopen() {
+    setBusy(true);
+    setMsg(null);
+    const note = reopenNote.trim();
+    const res = await fetch(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "NE_PROCES",
+        ...(note ? { comment: `Rihapje e çështjes: ${note}` } : {}),
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setMsg({ ok: false, text: j.error || "Rihapja dështoi." });
+      return;
+    }
+    setStatus("NE_PROCES");
+    setCommittedStatus("NE_PROCES");
+    setReopening(false);
+    setReopenNote("");
+    setMsg({
+      ok: true,
+      text: "Çështja u rihap («Në proces»). Tani mund ta ri-delegoni ose të jepni një përgjigje të re.",
+    });
+    await refreshHistory();
     router.refresh();
   }
 
@@ -276,7 +310,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
   }
 
   return (
-    <div className="space-y-4 pb-28 sm:space-y-6 sm:pb-0">
+    <div className={`space-y-4 sm:space-y-6 sm:pb-0 ${closed ? "" : "pb-28"}`}>
       <div className="surface-card overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-gradient-to-r from-brand to-brand-dark px-4 py-3.5 text-white sm:gap-3 sm:px-5 sm:py-4 md:px-8">
           <div className="min-w-0">
@@ -438,23 +472,33 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
 
           <div className="mt-5 space-y-4 sm:mt-6">
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="label" htmlFor="status">
-                  Statusi
-                </label>
-                <select
-                  id="status"
-                  className="field"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                >
-                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {closed ? (
+                <div>
+                  <p className="label">Statusi</p>
+                  <p className="field inline-flex items-center gap-2 border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                    Përfunduar · e mbyllur
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="label" htmlFor="status">
+                    Statusi
+                  </label>
+                  <select
+                    id="status"
+                    className="field"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                  >
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <p className="label">Drejtoria / Agjencia</p>
@@ -500,7 +544,75 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
               </div>
             )}
 
-            {canRedelegate(role) && (
+            {closed ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 text-sm">
+                    <p className="font-bold text-emerald-900">Çështja është e mbyllur</p>
+                    <p className="mt-0.5 text-emerald-900/75">
+                      {lastStatusChange
+                        ? `Mbyllur nga ${lastStatusChange.actorName} më ${format(new Date(lastStatusChange.createdAt), "dd.MM.yyyy HH:mm")}. `
+                        : ""}
+                      Statusi dhe drejtoria nuk ndryshohen më. Për ta ri-deleguar ose për të dhënë një përgjigje të re,
+                      rihapeni çështjen.
+                    </p>
+                  </div>
+                </div>
+                {reopening ? (
+                  <div className="mt-3 space-y-3 border-t border-emerald-200 pt-3">
+                    <div>
+                      <label className="label" htmlFor="reopen-note">
+                        Arsyeja e rihapjes (opsionale)
+                      </label>
+                      <textarea
+                        id="reopen-note"
+                        className="field resize-y"
+                        rows={2}
+                        maxLength={2000}
+                        value={reopenNote}
+                        onChange={(e) => setReopenNote(e.target.value)}
+                        placeholder="P.sh. qytetari solli dokumente të reja..."
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={reopen}
+                        disabled={busy}
+                        className="btn-primary !py-2 text-sm disabled:opacity-60"
+                      >
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                        {busy ? "Duke rihapur..." : "Konfirmo rihapjen"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReopening(false);
+                          setReopenNote("");
+                        }}
+                        disabled={busy}
+                        className="btn-ghost !py-2 text-sm"
+                      >
+                        Anulo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setReopening(true)}
+                    className="btn-ghost mt-3 w-full !py-2 text-sm sm:w-auto"
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    Rihap çështjen
+                  </button>
+                )}
+                <MessageNotice msg={msg} onClose={() => setMsg(null)} className="mt-3" />
+              </div>
+            ) : canRedelegate(role) && (
               <div className="rounded-xl border border-dashed border-brand/30 bg-brand-soft/20 p-3 sm:p-4">
                 {!redelegating ? (
                   <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -585,17 +697,19 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
             )}
           </div>
 
-          <div className="mt-4 hidden flex-wrap items-center gap-3 sm:flex">
-            <button
-              type="button"
-              onClick={saveMeta}
-              disabled={busy}
-              className="btn-primary disabled:opacity-60"
-            >
-              Ruaj ndryshimet
-            </button>
-            <MessageNotice msg={msg} onClose={() => setMsg(null)} className="w-full" />
-          </div>
+          {!closed && (
+            <div className="mt-4 hidden flex-wrap items-center gap-3 sm:flex">
+              <button
+                type="button"
+                onClick={saveMeta}
+                disabled={busy}
+                className="btn-primary disabled:opacity-60"
+              >
+                Ruaj ndryshimet
+              </button>
+              <MessageNotice msg={msg} onClose={() => setMsg(null)} className="w-full" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -621,7 +735,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
       />
 
       {/* Sticky save on mobile */}
-      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-white/95 px-3 py-2.5 backdrop-blur-md sm:hidden">
+      <div className={`fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-white/95 px-3 py-2.5 backdrop-blur-md sm:hidden ${closed ? "hidden" : ""}`}>
         <div className="mx-auto flex max-w-lg items-center gap-2">
           <button
             type="button"

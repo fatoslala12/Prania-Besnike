@@ -485,8 +485,7 @@ export function ResponsesSection({
                 : "Kërkesa është e mbyllur (Përfunduar)"}
             </p>
             <p className="mt-0.5 text-emerald-900/75">
-              Nuk shtohen më zgjidhje të tjera. Nëse duhet një përgjigje e re, rihapeni kërkesën duke e kaluar statusin
-              në «Në proces».
+              Nuk shtohen më zgjidhje të tjera. Nëse duhet një përgjigje e re, klikoni «Rihap çështjen» më lart.
             </p>
           </div>
         </div>

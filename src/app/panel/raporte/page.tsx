@@ -219,7 +219,7 @@ export default async function ReportsPage({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5">
           <SectionHead title="Shpërndarja sipas statusit" filter={filter} />
           <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-zinc-100">
             {r.statuses.map((s) =>
@@ -249,7 +249,7 @@ export default async function ReportsPage({
           </ul>
         </section>
 
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5">
           <SectionHead
             title={r.trend.monthly ? "Trendi mujor" : "Trendi ditor"}
             hint="Kërkesa të krijuara dhe të përfunduara në periudhë"
@@ -279,14 +279,41 @@ export default async function ReportsPage({
         </section>
       </div>
 
-      <section className="surface-card p-5">
+      <section className="surface-card min-w-0 p-4 sm:p-5">
         <SectionHead
           title="Sipas drejtorisë / agjencisë"
           hint="Sa kërkesa janë gjeneruar për secilën njësi dhe si janë trajtuar"
           filter={filter}
           type="units"
         />
-        <div className="mt-4 overflow-x-auto">
+        <ul className="mt-4 space-y-2.5 md:hidden print:hidden">
+          {r.byUnit.length === 0 && <li className="py-4 text-center text-sm text-muted">Nuk ka të dhëna për këtë periudhë.</li>}
+          {r.byUnit.map((u) => (
+            <li key={u.name} className="rounded-xl border border-line bg-bg/40 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 text-sm font-semibold leading-snug">{shortOrgUnit(u.name)}</p>
+                <p className="shrink-0 text-lg font-extrabold tabular-nums">{u.total}</p>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-zinc-100">
+                <div className="h-1.5 rounded-full bg-brand" style={{ width: `${(u.total / maxUnit) * 100}%` }} />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[0.7rem]">
+                {r.statuses.map((s) =>
+                  u.byStatus[s] ? (
+                    <span key={s} className={`rounded-full px-2 py-0.5 font-semibold ${STATUS_BADGE[s]}`}>
+                      {STATUS_LABELS[s]}: {u.byStatus[s]}
+                    </span>
+                  ) : null,
+                )}
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                {u.completionRate}% zgjidhje · koha mes. {formatDuration(u.avgResolutionHours)} · {u.citizen} qytetarë
+                {u.overdue ? <span className="font-semibold text-brand"> · {u.overdue} me vonesë</span> : null}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 hidden overflow-x-auto md:block print:block">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -329,7 +356,7 @@ export default async function ReportsPage({
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5">
           <SectionHead
             title="Sa ka gjeneruar secili"
             hint="Kërkesat sipas personit që i regjistroi"
@@ -365,7 +392,7 @@ export default async function ReportsPage({
           </div>
         </section>
 
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5">
           <SectionHead
             title="Aktiviteti i përdoruesve"
             hint="Veprimet e kryera në periudhë (krijime, statuse, ri-delegime, komente, dokumente)"
@@ -408,14 +435,35 @@ export default async function ReportsPage({
         </section>
       </div>
 
-      <section className="surface-card p-5">
+      <section className="surface-card min-w-0 p-4 sm:p-5">
         <SectionHead
           title={`Lista e kërkesave (${r.tasks.length})`}
           hint={r.tasks.length > 200 ? "Shfaqen 200 të fundit — eksportoni CSV për listën e plotë" : undefined}
           filter={filter}
           type="tasks"
         />
-        <div className="mt-4 overflow-x-auto">
+        <ul className="mt-4 divide-y divide-line md:hidden print:hidden">
+          {r.tasks.length === 0 && <li className="py-4 text-center text-sm text-muted">Nuk ka kërkesa për këto filtra.</li>}
+          {r.tasks.slice(0, 200).map((task) => (
+            <li key={task.id}>
+              <Link href={`/panel/detyra/${task.id}`} className="block py-3 active:bg-bg">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold text-brand">{task.number}</span>
+                  <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${STATUS_BADGE[task.status]}`}>
+                    {STATUS_LABELS[task.status]}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-sm font-medium">{task.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {format(new Date(task.createdAt), "dd.MM.yyyy")} · {task.orgUnit ? shortOrgUnit(task.orgUnit) : "Pa delegim"}
+                  {" · "}
+                  {task.creatorId ? task.creatorName : "Qytetar (publik)"}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 hidden overflow-x-auto md:block print:block">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
