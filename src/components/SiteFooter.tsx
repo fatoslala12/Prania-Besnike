@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "./BrandMark";
+import { DeveloperCredit } from "./DeveloperCredit";
 
 export function SiteFooter() {
   return (
@@ -15,6 +16,9 @@ export function SiteFooter() {
         >
           Mbrojtja e të dhënave
         </Link>
+        <div className="mt-3 w-full max-w-md border-t border-black/5 pt-4">
+          <DeveloperCredit />
+        </div>
       </div>
     </footer>
   );

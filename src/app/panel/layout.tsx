@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth-helpers";
+import { DeveloperCredit } from "@/components/DeveloperCredit";
 import { PanelNav } from "@/components/PanelNav";
 
 export default async function PanelLayout({
@@ -11,9 +12,14 @@ export default async function PanelLayout({
   return (
     <div className="flex min-h-full flex-col bg-bg">
       <PanelNav user={{ name: session.user.name, role: session.user.role }} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 pb-24 sm:px-4 sm:py-8 md:pb-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 sm:px-4 sm:py-8">
         {children}
       </main>
+      <footer className="mx-auto w-full max-w-6xl px-3 pb-24 pt-2 text-center sm:px-4 md:pb-6">
+        <div className="border-t border-line pt-4">
+          <DeveloperCredit />
+        </div>
+      </footer>
     </div>
   );
 }

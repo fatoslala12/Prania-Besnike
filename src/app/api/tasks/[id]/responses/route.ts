@@ -22,6 +22,12 @@ export async function POST(req: Request, { params }: Params) {
   if (!canRespond(accessOf(session), task)) {
     return NextResponse.json({ error: "Nuk keni të drejtë të lëshoni përgjigje" }, { status: 403 });
   }
+  if (task.status === "PERFUNDUAR") {
+    return NextResponse.json(
+      { error: "Kërkesa është mbyllur. Rihapeni (statusi «Në proces») për të shtuar një përgjigje të re." },
+      { status: 409 },
+    );
+  }
 
   const parsed = responseSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

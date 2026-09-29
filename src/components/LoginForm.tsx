@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Notice } from "@/components/Notice";
 
 export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
   const router = useRouter();
@@ -67,11 +68,7 @@ export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
         />
       </div>
 
-      {error && (
-        <p className="text-sm text-brand" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Notice tone="error">{error}</Notice>}
 
       <button
         type="submit"

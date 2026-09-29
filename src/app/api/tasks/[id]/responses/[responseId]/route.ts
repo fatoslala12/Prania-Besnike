@@ -25,6 +25,13 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
+  if (task.status === "PERFUNDUAR" && !existing.isFinal) {
+    return NextResponse.json(
+      { error: "Kërkesa është mbyllur; përgjigjet e pjesshme nuk ndryshohen më." },
+      { status: 409 },
+    );
+  }
+
   const parsed = responseSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(

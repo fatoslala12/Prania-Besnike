@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
+import { Notice } from "@/components/Notice";
 import { ORG_UNITS } from "@/lib/constants";
 
 function todayIso() {
@@ -180,16 +181,7 @@ export function CitizenForm() {
         {status === "loading" ? "Duke dërguar..." : "Dërgo kërkesën"}
       </button>
 
-      {message && (
-        <p
-          className={`text-sm ${
-            status === "ok" ? "text-emerald-700" : "text-brand"
-          }`}
-          role="status"
-        >
-          {message}
-        </p>
-      )}
+      {message && <Notice tone={status === "ok" ? "success" : "error"}>{message}</Notice>}
 
       {status === "ok" && pdfToken && (
         <a

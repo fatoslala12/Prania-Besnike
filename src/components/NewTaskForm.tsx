@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Notice } from "@/components/Notice";
 import { ORG_UNITS } from "@/lib/constants";
 
 export function NewTaskForm() {
@@ -114,7 +115,7 @@ export function NewTaskForm() {
         </p>
       </div>
 
-      {error && <p className="text-sm text-brand">{error}</p>}
+      {error && <Notice tone="error">{error}</Notice>}
 
       <button
         type="submit"

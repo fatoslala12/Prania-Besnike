@@ -7,6 +7,12 @@ export function mailEnabled() {
   return !process.env.SMTP_USER || Boolean(process.env.SMTP_PASS);
 }
 
+/** Google e shfaq App Password-in me hapësira ("abcd efgh ijkl mnop"); vetë kodi s'i ka ato. */
+function smtpPassword() {
+  const pass = process.env.SMTP_PASS ?? "";
+  return /gmail\.com$/i.test(process.env.SMTP_HOST ?? "") ? pass.replace(/\s+/g, "") : pass;
+}
+
 function getTransporter() {
   if (!transporter) {
     const port = Number(process.env.SMTP_PORT || 587);
@@ -15,7 +21,7 @@ function getTransporter() {
       port,
       secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : port === 465,
       auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+        ? { user: process.env.SMTP_USER, pass: smtpPassword() }
         : undefined,
     });
   }

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Download, FileText, Loader2, Lock, Mail, Pencil, Printer, Send } from "lucide-react";
+import { CheckCircle2, Download, FileText, Loader2, Lock, Mail, Pencil, Printer, Send } from "lucide-react";
+import { MessageNotice, Notice, type NoticeMessage } from "@/components/Notice";
 import { STATUS_LABELS, shortOrgUnit } from "@/lib/constants";
 import type { ResponseView, TaskStatus } from "@/lib/types";
 
@@ -53,7 +54,7 @@ function PdfActions({
   onSent?: (json: { response?: ResponseView }) => void;
 }) {
   const [busy, setBusy] = useState<"print" | "mail" | null>(null);
-  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [note, setNote] = useState<NoticeMessage | null>(null);
 
   async function print() {
     setBusy("print");
@@ -113,11 +114,7 @@ function PdfActions({
           Dërgo me email
         </button>
       </div>
-      {note && (
-        <p className={`mt-2 text-xs ${note.ok ? "text-emerald-700" : "text-brand"}`} role="status">
-          {note.text}
-        </p>
-      )}
+      <MessageNotice msg={note} size="sm" onClose={() => setNote(null)} className="mt-2" />
       {!emailTo && (
         <p className="mt-2 text-xs text-muted">Kërkuesi nuk ka dhënë email — mund ta printoni ose shkarkoni.</p>
       )}
@@ -261,9 +258,9 @@ function ResponseEditor({
         <span className="text-xs text-muted">{content.trim().length} karaktere</span>
       </div>
       {error && (
-        <p className="text-sm text-brand" role="alert">
+        <Notice tone="error" onClose={() => setError("")}>
           {error}
-        </p>
+        </Notice>
       )}
     </form>
   );
@@ -414,8 +411,10 @@ export function ResponsesSection({
   onChanged?: () => void;
 }) {
   const [responses, setResponses] = useState(initial);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [msg, setMsg] = useState<NoticeMessage | null>(null);
   const nextNumber = `${number}-${responses.reduce((m, r) => Math.max(m, r.seq), 0) + 1}`;
+  const closed = status === "PERFUNDUAR";
+  const finalResponse = [...responses].reverse().find((r) => r.isFinal);
 
   function replace(updated: ResponseView) {
     setResponses((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -458,7 +457,7 @@ export function ResponsesSection({
             response={r}
             status={status}
             citizenEmail={citizenEmail}
-            canEdit={canRespond}
+            canEdit={canRespond && (!closed || r.isFinal)}
             onSaved={(result, text) => {
               replace(result.response);
               setMsg({ ok: true, text });
@@ -472,7 +471,26 @@ export function ResponsesSection({
         ))}
       </ul>
 
-      {canRespond && orgUnit ? (
+      <MessageNotice msg={msg} onClose={() => setMsg(null)} className="mt-4" />
+
+      {closed ? (
+        <div className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="text-sm">
+            <p className="font-bold text-emerald-900">
+              {finalResponse
+                ? `Kërkesa u mbyll me përgjigjen përfundimtare Nr. ${finalResponse.number}`
+                : "Kërkesa është e mbyllur (Përfunduar)"}
+            </p>
+            <p className="mt-0.5 text-emerald-900/75">
+              Nuk shtohen më zgjidhje të tjera. Nëse duhet një përgjigje e re, rihapeni kërkesën duke e kaluar statusin
+              në «Në proces».
+            </p>
+          </div>
+        </div>
+      ) : canRespond && orgUnit ? (
         <div className="mt-6 space-y-3 rounded-xl border border-dashed border-brand/30 bg-brand-soft/20 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <label className="label !mb-0" htmlFor="new-response-content">
@@ -495,16 +513,11 @@ export function ResponsesSection({
           />
         </div>
       ) : (
-        <p className="mt-5 rounded-lg bg-bg px-3 py-2 text-sm text-muted">
+        <Notice tone="info" className="mt-5">
           {orgUnit
             ? "Nuk keni të drejtë të lëshoni përgjigje për këtë kërkesë."
             : "Kërkesa duhet të delegohet te një drejtori që të lëshohet përgjigje."}
-        </p>
-      )}
-      {msg && (
-        <p className={`mt-3 text-sm ${msg.ok ? "text-emerald-700" : "text-brand"}`} role="status">
-          {msg.text}
-        </p>
+        </Notice>
       )}
     </section>
   );

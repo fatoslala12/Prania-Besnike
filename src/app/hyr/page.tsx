@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
+import { DeveloperCredit } from "@/components/DeveloperCredit";
 import { LoginForm } from "@/components/LoginForm";
 import { auth } from "@/auth";
 import { isLocalMode } from "@/lib/repo";
@@ -43,6 +44,9 @@ export default async function LoginPage() {
           </Link>
         </div>
       </div>
+      <footer className="px-4 pb-6 text-center">
+        <DeveloperCredit />
+      </footer>
     </div>
   );
 }

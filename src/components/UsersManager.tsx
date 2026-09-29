@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Notice } from "@/components/Notice";
 import { ORG_UNITS, ROLE_LABELS, shortOrgUnit } from "@/lib/constants";
 import type { Role } from "@/lib/types";
 
@@ -114,7 +115,7 @@ export function UsersManager({ initialUsers }: { initialUsers: UserRow[] }) {
             Përdoruesi sheh dhe trajton detyrat e deleguara te kjo njësi.
           </p>
         </div>
-        {error && <p className="text-sm text-brand">{error}</p>}
+        {error && <Notice tone="error">{error}</Notice>}
         <button type="submit" disabled={loading} className="btn-primary disabled:opacity-60">
           {loading ? "Duke ruajtur..." : "Krijo"}
         </button>

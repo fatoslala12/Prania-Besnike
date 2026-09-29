@@ -13,6 +13,7 @@ import {
 } from "@/lib/constants";
 import type { ResponseView, Role, TaskStatus } from "@/lib/types";
 import { RequestSheet, ResponsesSection } from "@/components/TaskPapers";
+import { MessageNotice, type NoticeMessage } from "@/components/Notice";
 
 type Doc = {
   id: string;
@@ -109,7 +110,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
   const [docs, setDocs] = useState(task.documents);
   const [comments, setComments] = useState(task.comments);
   const [history, setHistory] = useState(task.history || []);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<NoticeMessage | null>(null);
   const [busy, setBusy] = useState(false);
   const [flashHistory, setFlashHistory] = useState(false);
   const [committedStatus, setCommittedStatus] = useState(task.status);
@@ -145,7 +146,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
 
   async function saveMeta() {
     setBusy(true);
-    setMsg("");
+    setMsg(null);
     const statusBefore = committedStatus;
     const res = await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
@@ -154,7 +155,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     });
     setBusy(false);
     if (!res.ok) {
-      setMsg("Nuk u ruajt.");
+      setMsg({ ok: false, text: "Nuk u ruajt." });
       return;
     }
     const saved = await res.json().catch(() => null);
@@ -162,9 +163,10 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     setCommittedStatus(nextStatus);
     await refreshHistory();
     if (nextStatus !== statusBefore) {
-      setMsg(
-        `Statusi u ndryshua në «${STATUS_LABELS[nextStatus]}» — shiko workflow më poshtë.`,
-      );
+      setMsg({
+        ok: true,
+        text: `Statusi u ndryshua në «${STATUS_LABELS[nextStatus]}» — shiko workflow më poshtë.`,
+      });
       setFlashHistory(true);
       setTimeout(() => setFlashHistory(false), 2500);
       document.getElementById("workflow-history")?.scrollIntoView({
@@ -172,7 +174,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
         block: "nearest",
       });
     } else {
-      setMsg("U ruajt.");
+      setMsg({ ok: true, text: "U ruajt." });
     }
     router.refresh();
   }
@@ -180,7 +182,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
   async function confirmRedelegate() {
     if (!canRedelegate(role) || !redelegateTo) return;
     setBusy(true);
-    setMsg("");
+    setMsg(null);
     const note = redelegateNote.trim();
     const res = await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
@@ -193,7 +195,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     });
     setBusy(false);
     if (!res.ok) {
-      setMsg("Ri-delegimi dështoi.");
+      setMsg({ ok: false, text: "Ri-delegimi dështoi." });
       return;
     }
     const saved = await res.json().catch(() => null);
@@ -206,7 +208,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     setRedelegating(false);
     setRedelegateTo("");
     setRedelegateNote("");
-    setMsg(`U ri-delegua te ${shortOrgUnit(redelegateTo)}.`);
+    setMsg({ ok: true, text: `U ri-delegua te ${shortOrgUnit(redelegateTo)}.` });
     await refreshHistory();
     router.refresh();
   }
@@ -215,7 +217,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
-    setMsg("");
+    setMsg(null);
     const fd = new FormData();
     fd.append("file", file);
     const res = await fetch(`/api/tasks/${task.id}/documents`, {
@@ -226,7 +228,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     e.target.value = "";
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setMsg(j.error || "Ngarkimi dështoi");
+      setMsg({ ok: false, text: j.error || "Ngarkimi dështoi" });
       return;
     }
     const doc = await res.json();
@@ -240,7 +242,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
       },
       ...d,
     ]);
-    setMsg("Dokumenti u ngarkua.");
+    setMsg({ ok: true, text: "Dokumenti u ngarkua." });
     await refreshHistory();
   }
 
@@ -255,7 +257,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     });
     setBusy(false);
     if (!res.ok) {
-      setMsg("Komenti nuk u shtua.");
+      setMsg({ ok: false, text: "Komenti nuk u shtua." });
       return;
     }
     const c = await res.json();
@@ -592,7 +594,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
             >
               Ruaj ndryshimet
             </button>
-            {msg && <p className="text-sm text-muted">{msg}</p>}
+            <MessageNotice msg={msg} onClose={() => setMsg(null)} className="w-full" />
           </div>
         </div>
       </div>
@@ -630,11 +632,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
             {busy ? "Duke ruajtur..." : "Ruaj ndryshimet"}
           </button>
         </div>
-        {msg && (
-          <p className="mx-auto mt-1.5 max-w-lg text-center text-xs text-muted">
-            {msg}
-          </p>
-        )}
+        <MessageNotice msg={msg} size="sm" onClose={() => setMsg(null)} className="mx-auto mt-1.5 max-w-lg" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
