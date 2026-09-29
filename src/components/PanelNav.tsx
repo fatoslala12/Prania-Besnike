@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Users,
   LogOut,
+  UserRound,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -106,14 +107,26 @@ export function PanelNav({ user }: Props) {
 
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBell />
-            <div className="hidden text-right sm:block">
-              <p className="max-w-[10rem] truncate text-sm font-semibold leading-tight">
-                {user.name}
-              </p>
-              <p className="text-[0.7rem] font-medium text-brand">
-                {ROLE_LABELS[user.role]}
-              </p>
-            </div>
+            <Link
+              href="/panel/profili"
+              aria-label="Profili im"
+              title="Profili im"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition sm:h-auto sm:w-auto sm:rounded-xl sm:border-transparent sm:px-2 sm:py-1 sm:text-right ${
+                isActive("/panel/profili")
+                  ? "border-brand text-brand sm:bg-brand-soft/60"
+                  : "border-line bg-white text-ink/70 hover:border-brand hover:text-brand sm:bg-transparent sm:hover:bg-brand-soft/40"
+              }`}
+            >
+              <UserRound className="h-[1.1rem] w-[1.1rem] sm:hidden" />
+              <span className="hidden sm:block">
+                <span className="block max-w-[10rem] truncate text-sm font-semibold leading-tight text-ink">
+                  {user.name}
+                </span>
+                <span className="block text-[0.7rem] font-medium text-brand">
+                  {ROLE_LABELS[user.role]}
+                </span>
+              </span>
+            </Link>
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/" })}

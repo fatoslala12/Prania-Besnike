@@ -8,7 +8,9 @@ import type {
   DocumentRecord,
   NewNotification,
   NewTaskInput,
+  NotificationKind,
   NotificationView,
+  PasswordChangeResult,
   ReportData,
   ResponseInput,
   ResponseView,
@@ -42,6 +44,22 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
 
 export async function listUsers(): Promise<UserView[]> {
   return (await store()).listUsers();
+}
+
+export async function getUser(id: string): Promise<UserView | null> {
+  return (await store()).getUser(id);
+}
+
+export async function changePassword(
+  id: string,
+  current: string,
+  next: string,
+): Promise<PasswordChangeResult> {
+  return (await store()).changePassword(id, current, next);
+}
+
+export async function setEmailNotifications(id: string, enabled: boolean): Promise<void> {
+  await (await store()).setEmailNotifications(id, enabled);
 }
 
 export async function createUser(input: {
@@ -157,6 +175,10 @@ export async function listNotifications(
   limit = 30,
 ): Promise<NotificationView[]> {
   return (await store()).listNotifications(userId, limit);
+}
+
+export async function hasNotificationSince(kind: NotificationKind, since: Date): Promise<boolean> {
+  return (await store()).hasNotificationSince(kind, since);
 }
 
 export async function countUnreadNotifications(userId: string): Promise<number> {

@@ -21,6 +21,7 @@ import {
   type ReportFilter,
 } from "@/lib/reports";
 import { getReportData, listUsers } from "@/lib/repo";
+import { MobileFilters } from "@/components/MobileFilters";
 import { PrintButton } from "@/components/PrintButton";
 import type { TaskStatus } from "@/lib/types";
 
@@ -97,6 +98,7 @@ export default async function ReportsPage({
     { label: "Ky muaj", from: day(startOfMonth(today)) },
     { label: "Ky vit", from: day(startOfYear(today)) },
   ];
+  const activeFilters = [filter.status, filter.orgUnit, filter.source, filter.creatorId].filter(Boolean).length;
   const creators = users.filter((u) => canCreateTask(u.role));
   const maxBucket = Math.max(1, ...r.trend.buckets.map((b) => Math.max(b.created, b.completed)));
   const maxUnit = Math.max(1, ...r.byUnit.map((u) => u.total));
@@ -153,6 +155,7 @@ export default async function ReportsPage({
             </Link>
           ))}
         </div>
+        <MobileFilters activeCount={activeFilters}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label" htmlFor="from">Nga data</label>
@@ -206,6 +209,7 @@ export default async function ReportsPage({
           <button type="submit" className="btn-primary !py-2 text-sm">Gjenero raportin</button>
           <Link href="/panel/raporte" className="btn-ghost !py-2 text-center text-sm">Pastro filtrat</Link>
         </div>
+        </MobileFilters>
       </form>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">

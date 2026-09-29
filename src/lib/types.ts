@@ -31,8 +31,11 @@ export type UserView = {
   username: string;
   role: Role;
   orgUnit: string | null;
+  emailNotifications: boolean;
   createdAt: string;
 };
+
+export type PasswordChangeResult = "OK" | "WRONG_PASSWORD" | "NOT_FOUND";
 
 export type TaskRecord = {
   id: string;
@@ -155,7 +158,8 @@ export type NotificationKind =
   | "STATUS_CHANGED"
   | "COMMENT_ADDED"
   | "DOCUMENT_UPLOADED"
-  | "RESPONSE_ADDED";
+  | "RESPONSE_ADDED"
+  | "REMINDER";
 
 export type NewNotification = {
   userId: string;

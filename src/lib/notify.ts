@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { STATUS_LABELS, shortOrgUnit } from "@/lib/constants";
-import { mailEnabled, sendMail } from "@/lib/mailer";
+import { escapeHtml, renderEmail } from "@/lib/email-template";
+import { mailEnabled, publicLink, sendMail } from "@/lib/mailer";
 import { createNotifications, listUsers } from "@/lib/repo";
 import type {
   NewNotification,
@@ -93,28 +94,42 @@ function describe(change: TaskChange, actor: Actor): { title: string; body: stri
   }
 }
 
-export function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
+export function notificationEmail(title: string, body: string, link: string, action = "Hap detyrën") {
+  const url = publicLink(link);
+  const cta = url
+    ? `<a href="${escapeHtml(url)}" style="display:inline-block;background:#a63240;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:bold">${escapeHtml(action)}</a>`
+    : `<p style="margin:0;color:#555555">Hyni në panelin Prania Besnike për ta parë.</p>`;
+  const footer =
+    "Njoftim automatik nga Prania Besnike · MSHMS, sepse keni llogari në sistem. Njoftimet me email mund t'i çaktivizoni te «Profili im» në panel.";
+  const text =
+    `${title}\n\n${body}\n\n` +
+    (url ? `${action}: ${url}` : "Hyni në panelin Prania Besnike për ta parë.") +
+    `\n\n— Prania Besnike · MSHMS\n${footer}`;
+  const html = renderEmail({
+    title,
+    band: "PRANIA BESNIKE · MSHMS",
+    preheader: body.slice(0, 140),
+    bodyHtml: `<h1 style="margin:0 0 12px;font-size:18px;line-height:1.3">${escapeHtml(title)}</h1>
+<p style="margin:0 0 20px;white-space:pre-line">${escapeHtml(body)}</p>
+${cta}`,
+    footer,
+  });
+  return { text, html };
 }
 
-function emailFor(title: string, body: string, link: string) {
-  const base = (process.env.AUTH_URL || "").replace(/\/$/, "");
-  const url = base ? `${base}${link}` : link;
-  const text = `${title}\n\n${body}\n\nHapni detyrën: ${url}\n\n— Prania Besnike · MSHMS`;
-  const html = `<!doctype html><html><body style="margin:0;background:#f6f4f4;font-family:Arial,sans-serif;color:#1c1c1c">
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
-<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #eee">
-<tr><td style="background:#a63240;color:#fff;padding:16px 24px;font-weight:bold;letter-spacing:.08em;font-size:13px">PRANIA BESNIKE · MSHMS</td></tr>
-<tr><td style="padding:24px">
-<h1 style="margin:0 0 12px;font-size:18px">${escapeHtml(title)}</h1>
-<p style="margin:0 0 20px;line-height:1.5;white-space:pre-line">${escapeHtml(body)}</p>
-<a href="${escapeHtml(url)}" style="display:inline-block;background:#a63240;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:bold">Hap detyrën</a>
-</td></tr>
-<tr><td style="padding:12px 24px;font-size:11px;color:#888;border-top:1px solid #eee">Njoftim automatik. Mos iu përgjigjni këtij emaili.</td></tr>
-</table></td></tr></table></body></html>`;
-  return { text, html };
+/** Dështimet regjistrohen në log; nuk e ndalin veprimin që shkaktoi njoftimin. */
+export async function mailUsers(
+  users: UserView[],
+  subject: string,
+  mail: { text: string; html: string },
+) {
+  const to = users.filter((u) => u.email && u.emailNotifications);
+  if (!mailEnabled() || to.length === 0) return;
+  const results = await Promise.allSettled(
+    to.map((u) => sendMail({ to: u.email, subject, automated: true, ...mail })),
+  );
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length) console.error(`Email: ${failed.length} dështuan`, failed[0]);
 }
 
 export async function notifyTaskChange(change: TaskChange, actor: Actor) {
@@ -135,19 +150,8 @@ export async function notifyTaskChange(change: TaskChange, actor: Actor) {
       taskId: change.task.id,
     }));
     await createNotifications(items);
-
-    if (mailEnabled()) {
-      const mail = emailFor(title, body, link);
-      after(async () => {
-        const results = await Promise.allSettled(
-          to
-            .filter((u) => u.email)
-            .map((u) => sendMail({ to: u.email, subject: `[Prania Besnike] ${title}`, ...mail })),
-        );
-        const failed = results.filter((r) => r.status === "rejected");
-        if (failed.length) console.error(`Email: ${failed.length} dështuan`, failed[0]);
-      });
-    }
+    const mail = notificationEmail(title, body, link);
+    after(() => mailUsers(to, `[Prania Besnike] ${title}`, mail));
   } catch (e) {
     console.error("Njoftimi dështoi", e);
   }

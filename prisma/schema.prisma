@@ -41,6 +41,8 @@ model User {
   role         Role     @default(PERFAQESUES)
   orgUnit      String?
   active       Boolean  @default(true)
+  /// Njoftimet në panel vijnë gjithmonë; ky flamur ndal vetëm kopjen me email.
+  emailNotifications Boolean @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -102,6 +104,7 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+  @@index([kind, createdAt])
 }
 
 /// Përgjigje zyrtare e drejtorisë (numri: <task.number>-<seq>); ndryshohet vetëm derisa të dërgohet me email.

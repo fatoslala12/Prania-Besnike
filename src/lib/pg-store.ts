@@ -25,6 +25,7 @@ import type {
   NewTaskInput,
   NotificationKind,
   NotificationView,
+  PasswordChangeResult,
   ReportData,
   ResponseInput,
   ResponseView,
@@ -149,20 +150,49 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
     : null;
 }
 
-export async function listUsers(): Promise<UserView[]> {
-  const users = await prisma.user.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-  });
-  return users.map((u) => ({
+function toUserView(u: Prisma.UserGetPayload<object>): UserView {
+  return {
     id: u.id,
     name: u.name,
     email: u.email,
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    emailNotifications: u.emailNotifications,
     createdAt: u.createdAt.toISOString(),
-  }));
+  };
+}
+
+export async function listUsers(): Promise<UserView[]> {
+  const users = await prisma.user.findMany({
+    where: { active: true },
+    orderBy: { name: "asc" },
+  });
+  return users.map(toUserView);
+}
+
+export async function getUser(id: string): Promise<UserView | null> {
+  const u = await prisma.user.findFirst({ where: { id, active: true } });
+  return u ? toUserView(u) : null;
+}
+
+export async function changePassword(
+  id: string,
+  current: string,
+  next: string,
+): Promise<PasswordChangeResult> {
+  const u = await prisma.user.findFirst({ where: { id, active: true } });
+  if (!u) return "NOT_FOUND";
+  if (!(await bcrypt.compare(current, u.passwordHash))) return "WRONG_PASSWORD";
+  await prisma.user.update({
+    where: { id },
+    data: { passwordHash: await bcrypt.hash(next, 12) },
+  });
+  return "OK";
+}
+
+export async function setEmailNotifications(id: string, enabled: boolean) {
+  await prisma.user.update({ where: { id }, data: { emailNotifications: enabled } });
 }
 
 export async function createUser(input: {
@@ -184,15 +214,7 @@ export async function createUser(input: {
         orgUnit: input.orgUnit,
       },
     });
-    return {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      username: u.username,
-      role: u.role,
-      orgUnit: u.orgUnit,
-      createdAt: u.createdAt.toISOString(),
-    };
+    return toUserView(u);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       throw new Error("EXISTS");
@@ -543,6 +565,10 @@ export async function listNotifications(
     readAt: n.readAt?.toISOString() ?? null,
     createdAt: n.createdAt.toISOString(),
   }));
+}
+
+export async function hasNotificationSince(kind: NotificationKind, since: Date) {
+  return (await prisma.notification.count({ where: { kind, createdAt: { gte: since } } })) > 0;
 }
 
 export async function countUnreadNotifications(userId: string) {

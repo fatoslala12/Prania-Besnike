@@ -36,6 +36,10 @@ services:
       SMTP_USER: ${SMTP_USER:-pranibesnike@gmail.com}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Prania Besnike MSHMS <pranibesnike@gmail.com>}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      APP_URL: ${APP_URL:-}
+      REMINDERS: ${REMINDERS:-}
+      REMINDER_HOUR: ${REMINDER_HOUR:-8}
     volumes:
       - uploads:/app/uploads
     depends_on:

@@ -26,7 +26,9 @@ import type {
   HistoryView,
   NewNotification,
   NewTaskInput,
+  NotificationKind,
   NotificationView,
+  PasswordChangeResult,
   ReportData,
   ResponseInput,
   ResponseView,
@@ -42,7 +44,11 @@ import type {
 
 export type { Role, TaskStatus };
 
-type LocalUser = AuthUser & { createdAt: string; updatedAt: string };
+type LocalUser = AuthUser & {
+  emailNotifications?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type LocalComment = {
   id: string;
@@ -232,6 +238,7 @@ function toUserView(u: LocalUser): UserView {
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    emailNotifications: u.emailNotifications ?? true,
     createdAt: u.createdAt,
   };
 }
@@ -264,6 +271,31 @@ export function listUsers(): UserView[] {
     .users.filter((u) => u.active)
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(toUserView);
+}
+
+export function getUser(id: string): UserView | null {
+  const u = readStore().users.find((x) => x.id === id && x.active);
+  return u ? toUserView(u) : null;
+}
+
+export function changePassword(id: string, current: string, next: string): PasswordChangeResult {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === id && x.active);
+  if (!u) return "NOT_FOUND";
+  if (!bcrypt.compareSync(current, u.passwordHash)) return "WRONG_PASSWORD";
+  u.passwordHash = bcrypt.hashSync(next, 10);
+  u.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return "OK";
+}
+
+export function setEmailNotifications(id: string, enabled: boolean) {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === id);
+  if (!u) return;
+  u.emailNotifications = enabled;
+  u.updatedAt = new Date().toISOString();
+  writeStore(store);
 }
 
 export function createUser(input: {
@@ -619,6 +651,11 @@ export function listNotifications(userId: string, limit: number): NotificationVi
     .notifications.filter((n) => n.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
+}
+
+export function hasNotificationSince(kind: NotificationKind, since: Date) {
+  const iso = since.toISOString();
+  return readStore().notifications.some((n) => n.kind === kind && n.createdAt >= iso);
 }
 
 export function countUnreadNotifications(userId: string) {
