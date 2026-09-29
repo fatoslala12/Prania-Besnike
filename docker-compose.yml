@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: prania
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Vendosni POSTGRES_PASSWORD}
+      POSTGRES_DB: prania_besnike
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prania -d prania_besnike"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_MODE: postgres
+      DATABASE_URL: postgresql://prania:${POSTGRES_PASSWORD}@db:5432/prania_besnike?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?Vendosni AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL:?Vendosni AUTH_URL}
+      AUTH_TRUST_HOST: "true"
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      SEED_DEMO: ${SEED_DEMO:-false}
+      UPLOAD_DIR: /app/uploads
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-pranibesnike@gmail.com}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Prania Besnike MSHMS <pranibesnike@gmail.com>}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:

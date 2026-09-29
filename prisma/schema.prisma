@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PERFAQESUES
+  RECEPSION
+  ADMIN
+}
+
+enum TaskStatus {
+  I_RI
+  NE_PROCES
+  PERFUNDUAR
+  BLOKUAR
+}
+
+enum EventType {
+  CREATED
+  ASSIGNED
+  UNASSIGNED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  DOCUMENT_UPLOADED
+  UPDATED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(PERFAQESUES)
+  orgUnit      String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdTasks  Task[]        @relation("TaskCreator")
+  assignedTasks Task[]        @relation("TaskAssignee")
+  comments      TaskComment[]
+  documents     Document[]
+  events        TaskEvent[]
+  notifications Notification[]
+
+  @@index([orgUnit])
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  number           String     @unique
+  title            String
+  description      String     @db.Text
+  status           TaskStatus @default(I_RI)
+  orgUnit          String?
+  citizenName      String?
+  citizenEmail     String?
+  citizenPhone     String?
+  requestDate      DateTime?
+  isCitizenRequest Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  creatorId  String?
+  creator    User?   @relation("TaskCreator", fields: [creatorId], references: [id])
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  comments      TaskComment[]
+  documents     Document[]
+  events        TaskEvent[]
+  notifications Notification[]
+
+  @@index([orgUnit])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  kind      String
+  title     String
+  body      String    @db.Text
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model TaskCounter {
+  year  Int @id
+  value Int
+}
+
+model TaskEvent {
+  id        String    @id @default(cuid())
+  type      EventType
+  message   String    @db.Text
+  actorName String
+  meta      Json?
+  createdAt DateTime  @default(now())
+
+  taskId  String
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([createdAt])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  createdAt    DateTime @default(now())
+
+  taskId       String
+  task         Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+}

@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.local
+uploads
+.data
+*.7z
+*.zip
+*.tgz
+tsconfig.tsbuildinfo
+Dockerfile
+docker-compose.yml
+.dockerignore
