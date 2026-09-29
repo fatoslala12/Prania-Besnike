@@ -11,7 +11,8 @@ import {
   canRedelegate,
   shortOrgUnit,
 } from "@/lib/constants";
-import type { Role, TaskStatus } from "@/lib/types";
+import type { ResponseView, Role, TaskStatus } from "@/lib/types";
+import { RequestSheet, ResponsesSection } from "@/components/TaskPapers";
 
 type Doc = {
   id: string;
@@ -62,6 +63,7 @@ type Task = {
   creator: { name: string } | null;
   documents: Doc[];
   comments: Comment[];
+  responses: ResponseView[];
   history?: HistoryItem[];
 };
 
@@ -70,6 +72,7 @@ type Props = {
   users: UserOption[];
   role: Role;
   canDelete: boolean;
+  canRespond: boolean;
 };
 
 const WORKFLOW: TaskStatus[] = ["I_RI", "NE_PROCES", "PERFUNDUAR"];
@@ -88,12 +91,16 @@ function eventLabel(type: string) {
       return "Koment";
     case "DOCUMENT_UPLOADED":
       return "Dokument";
+    case "RESPONSE_ADDED":
+      return "Përgjigje zyrtare";
+    case "EMAIL_SENT":
+      return "Email";
     default:
       return "Përditësim";
   }
 }
 
-export function TaskDetail({ task, users, role, canDelete }: Props) {
+export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) {
   const router = useRouter();
   const initialUnit = task.orgUnit || "";
   const [status, setStatus] = useState(task.status);
@@ -130,7 +137,10 @@ export function TaskDetail({ task, users, role, canDelete }: Props) {
     if (data.history) setHistory(data.history);
     if (data.documents) setDocs(data.documents);
     if (data.comments) setComments(data.comments);
-    if (data.status) setStatus(data.status as TaskStatus);
+    if (data.status) {
+      setStatus(data.status as TaskStatus);
+      setCommittedStatus(data.status as TaskStatus);
+    }
   }
 
   async function saveMeta() {
@@ -587,6 +597,27 @@ export function TaskDetail({ task, users, role, canDelete }: Props) {
         </div>
       </div>
 
+      <RequestSheet
+        taskId={task.id}
+        number={task.number}
+        citizenEmail={task.citizenEmail}
+        onChanged={refreshHistory}
+      />
+
+      <ResponsesSection
+        taskId={task.id}
+        number={task.number}
+        status={committedStatus}
+        orgUnit={orgUnit || null}
+        citizenEmail={task.citizenEmail}
+        canRespond={canRespond}
+        initial={task.responses}
+        onChanged={async () => {
+          await refreshHistory();
+          router.refresh();
+        }}
+      />
+
       {/* Sticky save on mobile */}
       <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-white/95 px-3 py-2.5 backdrop-blur-md sm:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-2">
@@ -706,9 +737,11 @@ export function TaskDetail({ task, users, role, canDelete }: Props) {
                         ? "bg-brand"
                         : isStatus
                           ? "bg-amber-500"
-                          : h.type === "DOCUMENT_UPLOADED"
+                          : h.type === "DOCUMENT_UPLOADED" || h.type === "RESPONSE_ADDED"
                             ? "bg-emerald-600"
-                            : "bg-brand/70"
+                            : h.type === "EMAIL_SENT"
+                              ? "bg-sky-600"
+                              : "bg-brand/70"
                   }`}
                 />
                 <div

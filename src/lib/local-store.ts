@@ -8,6 +8,9 @@ import {
   createdEvents,
   documentEvent,
   eventTimes,
+  responseEvent,
+  responseNumber,
+  responseUpdatedEvent,
   updateEvents,
   type EventDraft,
 } from "@/lib/task-events";
@@ -25,6 +28,8 @@ import type {
   NewTaskInput,
   NotificationView,
   ReportData,
+  ResponseInput,
+  ResponseView,
   Role,
   TaskDetailView,
   TaskFilter,
@@ -58,11 +63,18 @@ type LocalEvent = {
   createdAt: string;
 };
 
+type LocalResponse = Omit<
+  ResponseView,
+  "number" | "isFinal" | "sentAt" | "sentTo" | "updatedAt"
+> &
+  Partial<Pick<ResponseView, "isFinal" | "sentAt" | "sentTo" | "updatedAt">>;
+
 type StoreData = {
   users: LocalUser[];
   tasks: TaskRecord[];
   comments: LocalComment[];
   documents: DocumentRecord[];
+  responses: LocalResponse[];
   events: LocalEvent[];
   notifications: NotificationView[];
 };
@@ -115,6 +127,7 @@ function emptyStore(): StoreData {
     tasks: [],
     comments: [],
     documents: [],
+    responses: [],
     events: [],
     notifications: [],
   };
@@ -178,6 +191,7 @@ function readStore(): StoreData {
   data.tasks ||= [];
   data.comments ||= [];
   data.documents ||= [];
+  data.responses ||= [];
   data.events ||= [];
   data.notifications ||= [];
   if (migrate(data)) writeStore(data);
@@ -350,6 +364,10 @@ export function getTaskDetail(id: string): TaskDetailView | null {
       .filter((d) => d.taskId === id)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((d) => ({ ...d, uploadedBy: { name: userName(store, d.uploadedById) || "—" } })),
+    responses: store.responses
+      .filter((r) => r.taskId === id)
+      .sort((a, b) => a.seq - b.seq)
+      .map((r) => toResponseView(r, task.number)),
     comments: store.comments
       .filter((c) => c.taskId === id)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -413,6 +431,7 @@ export function deleteTask(id: string) {
   store.tasks = store.tasks.filter((t) => t.id !== id);
   store.comments = store.comments.filter((c) => c.taskId !== id);
   store.documents = store.documents.filter((d) => d.taskId !== id);
+  store.responses = store.responses.filter((r) => r.taskId !== id);
   store.events = store.events.filter((e) => e.taskId !== id);
   store.notifications = store.notifications.filter((n) => n.taskId !== id);
   writeStore(store);
@@ -461,6 +480,100 @@ export function getDocument(taskId: string, docId: string): DocumentRecord | nul
   return (
     readStore().documents.find((d) => d.id === docId && d.taskId === taskId) ?? null
   );
+}
+
+function toResponseView(r: LocalResponse, taskNumber: string): ResponseView {
+  return {
+    ...r,
+    isFinal: r.isFinal ?? false,
+    sentAt: r.sentAt ?? null,
+    sentTo: r.sentTo ?? null,
+    updatedAt: r.updatedAt ?? r.createdAt,
+    number: responseNumber(taskNumber, r.seq),
+  };
+}
+
+export function addResponse(
+  taskId: string,
+  input: ResponseInput & { orgUnit: string },
+  author: Actor,
+): ResponseView | null {
+  const store = readStore();
+  const task = store.tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+  const seq =
+    store.responses.reduce((max, r) => (r.taskId === taskId ? Math.max(max, r.seq) : max), 0) + 1;
+  const now = new Date().toISOString();
+  const response: LocalResponse = {
+    id: randomUUID(),
+    taskId,
+    seq,
+    content: input.content,
+    orgUnit: input.orgUnit,
+    isFinal: input.isFinal,
+    authorId: author.id,
+    authorName: author.name,
+    sentAt: null,
+    sentTo: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const view = toResponseView(response, task.number);
+  store.responses.push(response);
+  pushEvents(store, taskId, [responseEvent(view.number, input.orgUnit, input.isFinal)], author);
+  writeStore(store);
+  return view;
+}
+
+export function getResponse(taskId: string, responseId: string): ResponseView | null {
+  const store = readStore();
+  const task = store.tasks.find((t) => t.id === taskId);
+  const r = store.responses.find((x) => x.id === responseId && x.taskId === taskId);
+  return task && r ? toResponseView(r, task.number) : null;
+}
+
+/** Kthen null nëse përgjigjja nuk ekziston ose është dërguar tashmë (e kyçur). */
+export function updateResponse(
+  taskId: string,
+  responseId: string,
+  input: ResponseInput,
+  actor: Actor,
+): ResponseView | null {
+  const store = readStore();
+  const task = store.tasks.find((t) => t.id === taskId);
+  const r = store.responses.find((x) => x.id === responseId && x.taskId === taskId);
+  if (!task || !r || r.sentAt) return null;
+  r.content = input.content;
+  r.isFinal = input.isFinal;
+  r.updatedAt = new Date().toISOString();
+  const view = toResponseView(r, task.number);
+  pushEvents(store, taskId, [responseUpdatedEvent(view.number, view.isFinal)], actor);
+  writeStore(store);
+  return view;
+}
+
+export function markResponseSent(
+  taskId: string,
+  responseId: string,
+  to: string,
+  sentAt: Date,
+): ResponseView | null {
+  const store = readStore();
+  const task = store.tasks.find((t) => t.id === taskId);
+  const r = store.responses.find((x) => x.id === responseId && x.taskId === taskId);
+  if (!task || !r) return null;
+  if (!r.sentAt) {
+    r.sentAt = sentAt.toISOString();
+    r.sentTo = to;
+    writeStore(store);
+  }
+  return toResponseView(r, task.number);
+}
+
+export function logTaskEvent(taskId: string, draft: EventDraft, actor: Actor) {
+  const store = readStore();
+  pushEvents(store, taskId, [draft], actor);
+  writeStore(store);
 }
 
 export function getDashboardStats(

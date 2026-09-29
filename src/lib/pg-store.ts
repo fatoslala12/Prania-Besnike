@@ -7,6 +7,9 @@ import {
   createdEvents,
   documentEvent,
   eventTimes,
+  responseEvent,
+  responseNumber,
+  responseUpdatedEvent,
   updateEvents,
   type EventDraft,
 } from "@/lib/task-events";
@@ -23,6 +26,8 @@ import type {
   NotificationKind,
   NotificationView,
   ReportData,
+  ResponseInput,
+  ResponseView,
   Role,
   TaskDetailView,
   TaskFilter,
@@ -68,6 +73,26 @@ function toHistory(
     actorRole: e.actor?.role ?? ((meta?.actorRole as Role | undefined) || null),
     meta,
     createdAt: e.createdAt.toISOString(),
+  };
+}
+
+type ResponseRow = Prisma.TaskResponseGetPayload<object>;
+
+function toResponseView(r: ResponseRow, taskNumber: string): ResponseView {
+  return {
+    id: r.id,
+    taskId: r.taskId,
+    seq: r.seq,
+    number: responseNumber(taskNumber, r.seq),
+    content: r.content,
+    orgUnit: r.orgUnit,
+    isFinal: r.isFinal,
+    authorId: r.authorId,
+    authorName: r.authorName,
+    sentAt: r.sentAt?.toISOString() ?? null,
+    sentTo: r.sentTo,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
   };
 }
 
@@ -226,6 +251,7 @@ export async function getTaskDetail(id: string): Promise<TaskDetailView | null> 
         orderBy: { createdAt: "asc" },
         include: { author: { select: { name: true, role: true } } },
       },
+      responses: { orderBy: { seq: "asc" } },
       events: {
         orderBy: { createdAt: "asc" },
         include: { actor: { select: { role: true } } },
@@ -245,6 +271,7 @@ export async function getTaskDetail(id: string): Promise<TaskDetailView | null> 
       ...c,
       createdAt: c.createdAt.toISOString(),
     })),
+    responses: t.responses.map((r) => toResponseView(r, t.number)),
     history: t.events.map(toHistory),
   };
 }
@@ -355,6 +382,104 @@ export async function getDocument(
 ): Promise<DocumentRecord | null> {
   const d = await prisma.document.findFirst({ where: { id: docId, taskId } });
   return d ? { ...d, createdAt: d.createdAt.toISOString() } : null;
+}
+
+export async function addResponse(
+  taskId: string,
+  input: ResponseInput & { orgUnit: string },
+  author: Actor,
+): Promise<ResponseView | null> {
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { number: true } });
+  if (!task) return null;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const created = await prisma.$transaction(async (tx) => {
+        const last = await tx.taskResponse.aggregate({ where: { taskId }, _max: { seq: true } });
+        const seq = (last._max.seq ?? 0) + 1;
+        const row = await tx.taskResponse.create({
+          data: {
+            taskId,
+            seq,
+            content: input.content,
+            orgUnit: input.orgUnit,
+            isFinal: input.isFinal,
+            authorId: author.id,
+            authorName: author.name,
+          },
+        });
+        await tx.taskEvent.createMany({
+          data: eventRows(
+            taskId,
+            [responseEvent(responseNumber(task.number, seq), input.orgUnit, input.isFinal)],
+            author,
+          ),
+        });
+        return row;
+      });
+      return toResponseView(created, task.number);
+    } catch (e) {
+      const clash = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!clash || attempt >= 4) throw e;
+    }
+  }
+}
+
+export async function getResponse(
+  taskId: string,
+  responseId: string,
+): Promise<ResponseView | null> {
+  const r = await prisma.taskResponse.findFirst({
+    where: { id: responseId, taskId },
+    include: { task: { select: { number: true } } },
+  });
+  return r ? toResponseView(r, r.task.number) : null;
+}
+
+/** Kthen null nëse përgjigjja nuk ekziston ose është dërguar tashmë (e kyçur). */
+export async function updateResponse(
+  taskId: string,
+  responseId: string,
+  input: ResponseInput,
+  actor: Actor,
+): Promise<ResponseView | null> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.taskResponse.updateMany({
+      where: { id: responseId, taskId, sentAt: null },
+      data: { content: input.content, isFinal: input.isFinal },
+    });
+    if (locked.count === 0) return null;
+    const r = await tx.taskResponse.findUniqueOrThrow({
+      where: { id: responseId },
+      include: { task: { select: { number: true } } },
+    });
+    const view = toResponseView(r, r.task.number);
+    await tx.taskEvent.createMany({
+      data: eventRows(taskId, [responseUpdatedEvent(view.number, view.isFinal)], actor),
+    });
+    return view;
+  });
+}
+
+export async function markResponseSent(
+  taskId: string,
+  responseId: string,
+  to: string,
+  sentAt: Date,
+): Promise<ResponseView | null> {
+  const current = await prisma.taskResponse.findFirst({ where: { id: responseId, taskId } });
+  if (!current) return null;
+  if (!current.sentAt) {
+    // updatedAt mban datën e ndryshimit të fundit të përmbajtjes, jo të dërgimit.
+    await prisma.taskResponse.updateMany({
+      where: { id: responseId, taskId, sentAt: null },
+      data: { sentAt, sentTo: to, updatedAt: current.updatedAt },
+    });
+  }
+  return getResponse(taskId, responseId);
+}
+
+export async function logTaskEvent(taskId: string, draft: EventDraft, actor: Actor) {
+  await prisma.taskEvent.createMany({ data: eventRows(taskId, [draft], actor) });
 }
 
 export async function getDashboardStats(

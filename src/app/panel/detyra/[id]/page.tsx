@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { accessOf, requireSession } from "@/lib/auth-helpers";
-import { canAccessTask, canAssignTask } from "@/lib/constants";
+import { canAccessTask, canAssignTask, canRespond } from "@/lib/constants";
 import { getTaskDetail, listUsers } from "@/lib/repo";
 import { TaskDetail } from "@/components/TaskDetail";
 
@@ -34,6 +34,7 @@ export default async function TaskPage({ params }: Props) {
           users={users}
           role={session.user.role}
           canDelete={session.user.role === "ADMIN"}
+          canRespond={canRespond(accessOf(session), task)}
         />
       </div>
     </div>

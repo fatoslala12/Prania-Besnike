@@ -15,7 +15,8 @@ export type TaskChange =
   | { kind: "TASK_DELEGATED"; task: TaskRecord; fromOrgUnit: string | null; note?: string | null }
   | { kind: "STATUS_CHANGED"; task: TaskRecord; from: TaskStatus }
   | { kind: "COMMENT_ADDED"; task: TaskRecord; content: string }
-  | { kind: "DOCUMENT_UPLOADED"; task: TaskRecord; fileName: string };
+  | { kind: "DOCUMENT_UPLOADED"; task: TaskRecord; fileName: string }
+  | { kind: "RESPONSE_ADDED"; task: TaskRecord; number: string; orgUnit: string };
 
 type Actor = { id: string | null; name: string };
 
@@ -41,6 +42,7 @@ function recipients(change: TaskChange, users: UserView[], actor: Actor) {
     STATUS_CHANGED: [unit, managers, creator],
     COMMENT_ADDED: [unit, creator],
     DOCUMENT_UPLOADED: [unit, creator],
+    RESPONSE_ADDED: [unit, managers, creator],
   }[change.kind];
 
   const seen = new Map<string, UserView>();
@@ -83,10 +85,15 @@ function describe(change: TaskChange, actor: Actor): { title: string; body: stri
         title: `Dokument i ri te ${task.number}`,
         body: `${actor.name} ngarkoi «${change.fileName}»`,
       };
+    case "RESPONSE_ADDED":
+      return {
+        title: `Përgjigje zyrtare ${change.number}`,
+        body: `${actor.name} (${shortOrgUnit(change.orgUnit)}) lëshoi përgjigjen · ${task.title}`,
+      };
   }
 }
 
-function escapeHtml(s: string) {
+export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
   );

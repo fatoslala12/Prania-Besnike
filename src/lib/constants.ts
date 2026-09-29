@@ -72,6 +72,14 @@ export function canAccessTask(
   return !!user.orgUnit && task.orgUnit === user.orgUnit;
 }
 
+/** Përgjigje shkruan kushdo që ka akses te kërkesa, pasi ajo t'i jetë deleguar një drejtorie. */
+export function canRespond(
+  user: { id: string; role: Role; orgUnit?: string | null },
+  task: { assigneeId: string | null; orgUnit: string | null },
+) {
+  return !!task.orgUnit && canAccessTask(user, task);
+}
+
 export function shortOrgUnit(name: string) {
   if (name === "OSHKSH") return "OSHKSH";
   if (name.startsWith("Drejtoria ")) return name.replace("Drejtoria ", "Dr. ");

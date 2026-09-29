@@ -181,13 +181,21 @@ export function buildReport(data: ReportData, f: ReportFilter) {
   );
   const actMap = new Map<
     string,
-    { name: string; created: number; status: number; redelegated: number; comments: number; documents: number }
+    {
+      name: string;
+      created: number;
+      status: number;
+      redelegated: number;
+      comments: number;
+      documents: number;
+      responses: number;
+    }
   >();
   for (const e of events) {
     const key = e.actorId ?? `anon:${e.actorName}`;
     const a =
       actMap.get(key) ??
-      { name: e.actorName, created: 0, status: 0, redelegated: 0, comments: 0, documents: 0 };
+      { name: e.actorName, created: 0, status: 0, redelegated: 0, comments: 0, documents: 0, responses: 0 };
     if (e.type === "CREATED") a.created++;
     else if (e.type === "STATUS_CHANGED") a.status++;
     else if (e.type === "ASSIGNED") {
@@ -195,10 +203,14 @@ export function buildReport(data: ReportData, f: ReportFilter) {
       if (born === undefined || Date.parse(e.createdAt) - born > 1000) a.redelegated++;
     } else if (e.type === "COMMENT_ADDED") a.comments++;
     else if (e.type === "DOCUMENT_UPLOADED") a.documents++;
+    else if (e.type === "RESPONSE_ADDED") a.responses++;
     actMap.set(key, a);
   }
   const activity = [...actMap.values()]
-    .map((a) => ({ ...a, total: a.created + a.status + a.redelegated + a.comments + a.documents }))
+    .map((a) => ({
+      ...a,
+      total: a.created + a.status + a.redelegated + a.comments + a.documents + a.responses,
+    }))
     .sort((a, b) => b.total - a.total);
 
   const { from, to } = filterRange(f);
@@ -266,8 +278,8 @@ export function reportCsv(report: Report, type: string) {
       );
     case "activity":
       return toCsv(
-        ["Përdoruesi", "Krijime", "Ndryshime statusi", "Ri-delegime", "Komente", "Dokumente", "Totali"],
-        report.activity.map((a) => [a.name, a.created, a.status, a.redelegated, a.comments, a.documents, a.total]),
+        ["Përdoruesi", "Krijime", "Ndryshime statusi", "Ri-delegime", "Komente", "Dokumente", "Përgjigje zyrtare", "Totali"],
+        report.activity.map((a) => [a.name, a.created, a.status, a.redelegated, a.comments, a.documents, a.responses, a.total]),
       );
     default:
       return toCsv(

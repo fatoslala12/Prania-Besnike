@@ -382,12 +382,13 @@ export default async function ReportsPage({
                   <th className="px-2 py-2 text-right font-semibold">Ri-deleg.</th>
                   <th className="px-2 py-2 text-right font-semibold">Komente</th>
                   <th className="px-2 py-2 text-right font-semibold">Dok.</th>
+                  <th className="px-2 py-2 text-right font-semibold">Përgjigje</th>
                   <th className="py-2 pl-2 text-right font-semibold">Totali</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {r.activity.length === 0 && (
-                  <tr><td colSpan={7} className="py-6 text-center text-muted">Nuk ka aktivitet.</td></tr>
+                  <tr><td colSpan={8} className="py-6 text-center text-muted">Nuk ka aktivitet.</td></tr>
                 )}
                 {r.activity.map((a) => (
                   <tr key={a.name}>
@@ -397,6 +398,7 @@ export default async function ReportsPage({
                     <td className="px-2 py-2.5 text-right tabular-nums">{a.redelegated}</td>
                     <td className="px-2 py-2.5 text-right tabular-nums">{a.comments}</td>
                     <td className="px-2 py-2.5 text-right tabular-nums">{a.documents}</td>
+                    <td className="px-2 py-2.5 text-right tabular-nums">{a.responses}</td>
                     <td className="py-2.5 pl-2 text-right font-bold tabular-nums">{a.total}</td>
                   </tr>
                 ))}

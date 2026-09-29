@@ -1,4 +1,5 @@
 import path from "path";
+import type { EventDraft } from "@/lib/task-events";
 import type {
   Actor,
   AuthUser,
@@ -9,6 +10,8 @@ import type {
   NewTaskInput,
   NotificationView,
   ReportData,
+  ResponseInput,
+  ResponseView,
   Role,
   TaskDetailView,
   TaskFilter,
@@ -100,6 +103,43 @@ export async function getDocument(
   docId: string,
 ): Promise<DocumentRecord | null> {
   return (await store()).getDocument(taskId, docId);
+}
+
+export async function addResponse(
+  taskId: string,
+  input: ResponseInput & { orgUnit: string },
+  author: Actor,
+): Promise<ResponseView | null> {
+  return (await store()).addResponse(taskId, input, author);
+}
+
+export async function getResponse(
+  taskId: string,
+  responseId: string,
+): Promise<ResponseView | null> {
+  return (await store()).getResponse(taskId, responseId);
+}
+
+export async function updateResponse(
+  taskId: string,
+  responseId: string,
+  input: ResponseInput,
+  actor: Actor,
+): Promise<ResponseView | null> {
+  return (await store()).updateResponse(taskId, responseId, input, actor);
+}
+
+export async function markResponseSent(
+  taskId: string,
+  responseId: string,
+  to: string,
+  sentAt: Date,
+): Promise<ResponseView | null> {
+  return (await store()).markResponseSent(taskId, responseId, to, sentAt);
+}
+
+export async function logTaskEvent(taskId: string, draft: EventDraft, actor: Actor): Promise<void> {
+  await (await store()).logTaskEvent(taskId, draft, actor);
 }
 
 export async function getDashboardStats(

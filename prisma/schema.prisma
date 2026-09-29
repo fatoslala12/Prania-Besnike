@@ -28,6 +28,8 @@ enum EventType {
   COMMENT_ADDED
   DOCUMENT_UPLOADED
   UPDATED
+  RESPONSE_ADDED
+  EMAIL_SENT
 }
 
 model User {
@@ -48,6 +50,7 @@ model User {
   documents     Document[]
   events        TaskEvent[]
   notifications Notification[]
+  responses     TaskResponse[]
 
   @@index([orgUnit])
 }
@@ -76,6 +79,7 @@ model Task {
   documents     Document[]
   events        TaskEvent[]
   notifications Notification[]
+  responses     TaskResponse[]
 
   @@index([orgUnit])
   @@index([status])
@@ -98,6 +102,27 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+/// Përgjigje zyrtare e drejtorisë (numri: <task.number>-<seq>); ndryshohet vetëm derisa të dërgohet me email.
+model TaskResponse {
+  id         String    @id @default(cuid())
+  seq        Int
+  content    String    @db.Text
+  orgUnit    String
+  isFinal    Boolean   @default(false)
+  authorName String
+  sentAt     DateTime?
+  sentTo     String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  taskId   String
+  task     Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId String?
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, seq])
 }
 
 model TaskCounter {

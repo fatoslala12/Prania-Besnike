@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { ORG_UNITS } from "@/lib/constants";
 
 function todayIso() {
@@ -12,6 +13,7 @@ export function CitizenForm() {
     "idle",
   );
   const [message, setMessage] = useState("");
+  const [pdfToken, setPdfToken] = useState<string | null>(null);
   const startedAt = useRef(0);
 
   useEffect(() => {
@@ -22,6 +24,7 @@ export function CitizenForm() {
     e.preventDefault();
     setStatus("loading");
     setMessage("");
+    setPdfToken(null);
 
     const form = e.currentTarget;
     const data = new FormData(form);
@@ -51,6 +54,7 @@ export function CitizenForm() {
       }
 
       setStatus("ok");
+      setPdfToken(json.pdfToken ?? null);
       setMessage(
         `Kërkesa u regjistrua${json.number ? ` me numër ${json.number}` : ""}. Do t’ju përgjigjemi sa më shpejt. Asnjë qytetar pa përgjigje.`,
       );
@@ -185,6 +189,16 @@ export function CitizenForm() {
         >
           {message}
         </p>
+      )}
+
+      {status === "ok" && pdfToken && (
+        <a
+          href={`/api/citizen-request/pdf?t=${encodeURIComponent(pdfToken)}`}
+          className="btn-ghost inline-flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Shkarko fletën e kërkesës (PDF)
+        </a>
       )}
     </form>
   );

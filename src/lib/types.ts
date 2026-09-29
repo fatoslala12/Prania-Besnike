@@ -7,7 +7,9 @@ export type EventType =
   | "STATUS_CHANGED"
   | "COMMENT_ADDED"
   | "DOCUMENT_UPLOADED"
-  | "UPDATED";
+  | "UPDATED"
+  | "RESPONSE_ADDED"
+  | "EMAIL_SENT";
 
 export type EventMeta = Record<string, string | number | boolean | null | undefined>;
 
@@ -90,11 +92,33 @@ export type HistoryView = {
   createdAt: string;
 };
 
+export type ResponseView = {
+  id: string;
+  taskId: string;
+  seq: number;
+  /** Numri zyrtar: <nr. i kërkesës>-<seq>, p.sh. PB-2026-0001-2 */
+  number: string;
+  content: string;
+  orgUnit: string;
+  /** true = përgjigje përfundimtare (kërkesa → Përfunduar); false = e pjesshme */
+  isFinal: boolean;
+  authorId: string | null;
+  authorName: string;
+  /** Pasi dërgohet me email, përgjigjja nuk ndryshohet më. */
+  sentAt: string | null;
+  sentTo: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResponseInput = { content: string; isFinal: boolean };
+
 export type TaskDetailView = TaskRecord & {
   assignee: { id: string; name: string; email: string; role: Role } | null;
   creator: { id: string; name: string } | null;
   documents: DocumentView[];
   comments: CommentView[];
+  responses: ResponseView[];
   history: HistoryView[];
 };
 
@@ -130,7 +154,8 @@ export type NotificationKind =
   | "TASK_DELEGATED"
   | "STATUS_CHANGED"
   | "COMMENT_ADDED"
-  | "DOCUMENT_UPLOADED";
+  | "DOCUMENT_UPLOADED"
+  | "RESPONSE_ADDED";
 
 export type NewNotification = {
   userId: string;

@@ -22,7 +22,15 @@ function getTransporter() {
   return transporter;
 }
 
-export async function sendMail(msg: { to: string; subject: string; text: string; html: string }) {
+export type MailAttachment = { filename: string; content: Buffer; contentType?: string };
+
+export async function sendMail(msg: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  attachments?: MailAttachment[];
+}) {
   if (!mailEnabled()) return;
   await getTransporter().sendMail({
     from: process.env.MAIL_FROM || process.env.SMTP_USER,

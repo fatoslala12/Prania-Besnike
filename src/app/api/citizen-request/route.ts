@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isOrgUnit } from "@/lib/constants";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { notifyTaskChange } from "@/lib/notify";
+import { createPdfToken } from "@/lib/pdf-token";
 import { createTask } from "@/lib/repo";
 
 const MIN_FILL_MS = 3000;
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
       actor,
     );
     await notifyTaskChange({ kind: "TASK_NEW", task }, actor);
-    return NextResponse.json({ ok: true, number: task.number });
+    return NextResponse.json({ ok: true, number: task.number, pdfToken: createPdfToken(task.id) });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

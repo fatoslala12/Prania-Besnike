@@ -136,6 +136,36 @@ export function documentEvent(originalName: string): EventDraft {
   };
 }
 
+export function responseNumber(taskNumber: string, seq: number) {
+  return `${taskNumber}-${seq}`;
+}
+
+const responseKind = (isFinal: boolean) => (isFinal ? "përfundimtare" : "e pjesshme");
+
+export function responseEvent(number: string, orgUnit: string, isFinal: boolean): EventDraft {
+  return {
+    type: "RESPONSE_ADDED",
+    message: `U lëshua përgjigjja ${responseKind(isFinal)} ${number} nga ${orgUnit}`,
+    meta: { number, orgUnit, isFinal },
+  };
+}
+
+export function responseUpdatedEvent(number: string, isFinal: boolean): EventDraft {
+  return {
+    type: "UPDATED",
+    message: `U ndryshua përgjigjja ${number} (${responseKind(isFinal)})`,
+    meta: { number, isFinal },
+  };
+}
+
+export function emailEvent(docNumber: string, to: string, what: "kërkesës" | "përgjigjes"): EventDraft {
+  return {
+    type: "EMAIL_SENT",
+    message: `Fleta e ${what} ${docNumber} u dërgua me email te ${to}`,
+    meta: { number: docNumber, to },
+  };
+}
+
 /** Timestamps të njëpasnjëshme që renditja e historikut të jetë e qëndrueshme. */
 export function eventTimes(count: number, base = Date.now()) {
   return Array.from({ length: count }, (_, i) => new Date(base + i));
