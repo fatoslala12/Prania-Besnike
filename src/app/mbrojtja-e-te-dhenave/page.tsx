@@ -41,10 +41,10 @@ export default function PrivacyPage() {
             ndërmjetësit të zonës suaj në dëgjesën e së premtes — kontaktin e
             tij e gjeni te kalendari i dëgjesave — ose shkruani te{" "}
             <a
-              href="mailto:privatesia@praniabesnike.al"
+              href="mailto:privatesia@praniabesnike.com"
               className="font-medium text-brand underline underline-offset-2"
             >
-              privatesia@praniabesnike.al
+              privatesia@praniabesnike.com
             </a>
             .
           </p>
@@ -179,10 +179,10 @@ export default function PrivacyPage() {
             Kërkesën mund t&apos;ia bëni gojarisht ndërmjetësit të zonës suaj në
             dëgjesë, ose me shkrim te{" "}
             <a
-              href="mailto:privatesia@praniabesnike.al"
+              href="mailto:privatesia@praniabesnike.com"
               className="font-medium text-brand underline underline-offset-2"
             >
-              privatesia@praniabesnike.al
+              privatesia@praniabesnike.com
             </a>
             . Është falas dhe ju përgjigjemi brenda afatit ligjor.
           </p>

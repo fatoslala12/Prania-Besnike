@@ -92,7 +92,7 @@ export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
 
       <p className="text-center text-sm">
         <a
-          href="mailto:privatesia@praniabesnike.al"
+          href="mailto:privatesia@praniabesnike.com"
           className="text-brand underline underline-offset-4"
         >
           Harrova fjalëkalimin

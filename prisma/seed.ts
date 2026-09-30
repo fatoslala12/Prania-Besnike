@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 /**
  * Idempotent: krijon vetëm përdoruesit që mungojnë, nuk prek fjalëkalimet ekzistuese.
  *   ADMIN_PASSWORD  (i detyrueshëm herën e parë, min. 10 karaktere)
- *   ADMIN_EMAIL     (default admin@praniabesnike.al)
+ *   ADMIN_EMAIL     (default admin@praniabesnike.com)
  *   ADMIN_USERNAME  (default admin)
  *   SEED_DEMO=true  shton recepsion/perfaqesues me fjalëkalim Prania2026! (vetëm për test)
  */
@@ -49,7 +49,7 @@ async function main() {
     } else {
       const username = process.env.ADMIN_USERNAME || "admin";
       await ensureUser({
-        email: (process.env.ADMIN_EMAIL || "admin@praniabesnike.al").toLowerCase(),
+        email: (process.env.ADMIN_EMAIL || "admin@praniabesnike.com").toLowerCase(),
         username,
         name: "Administrator",
         role: Role.ADMIN,
@@ -62,13 +62,13 @@ async function main() {
   if (process.env.SEED_DEMO === "true") {
     const demo = [
       {
-        email: "recepsion@praniabesnike.al",
+        email: "recepsion@praniabesnike.com",
         username: "recepsion",
         name: "Recepsion",
         role: Role.RECEPSION,
       },
       {
-        email: "perfaqesues@praniabesnike.al",
+        email: "perfaqesues@praniabesnike.com",
         username: "perfaqesues",
         name: "Përfaqësues Drejtorie",
         role: Role.PERFAQESUES,

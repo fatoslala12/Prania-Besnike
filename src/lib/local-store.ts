@@ -100,7 +100,7 @@ function defaultUsers(): LocalUser[] {
     {
       ...base,
       id: "user-admin",
-      email: "admin@praniabesnike.al",
+      email: "admin@praniabesnike.com",
       username: "admin",
       name: "Administrator",
       role: "ADMIN",
@@ -109,7 +109,7 @@ function defaultUsers(): LocalUser[] {
     {
       ...base,
       id: "user-recepsion",
-      email: "recepsion@praniabesnike.al",
+      email: "recepsion@praniabesnike.com",
       username: "recepsion",
       name: "Recepsion",
       role: "RECEPSION",
@@ -118,7 +118,7 @@ function defaultUsers(): LocalUser[] {
     {
       ...base,
       id: "user-perfaqesues",
-      email: "perfaqesues@praniabesnike.al",
+      email: "perfaqesues@praniabesnike.com",
       username: "perfaqesues",
       name: "Përfaqësues Drejtorie",
       role: "PERFAQESUES",

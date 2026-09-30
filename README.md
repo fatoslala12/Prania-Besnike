@@ -132,7 +132,7 @@ curl -sSL https://dokploy.com/install.sh | sh
    | `AUTH_URL` | `https://domaini-juaj.al` |
    | `AUTH_TRUST_HOST` | `true` |
    | `ADMIN_PASSWORD` | fjalëkalimi i adminit të parë (min. 10) |
-   | `ADMIN_EMAIL` / `ADMIN_USERNAME` | opsionale (default `admin@praniabesnike.al` / `admin`) |
+   | `ADMIN_EMAIL` / `ADMIN_USERNAME` | opsionale (default `admin@praniabesnike.com` / `admin`) |
    | `UPLOAD_DIR` | `/app/uploads` |
    | `SMTP_HOST` | `smtp.gmail.com` |
    | `SMTP_PORT` | `587` |
