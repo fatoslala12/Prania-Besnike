@@ -3,14 +3,12 @@ import { format } from "date-fns";
 import { Building2, Paperclip } from "lucide-react";
 import { accessOf, requireSession } from "@/lib/auth-helpers";
 import {
-  ORG_UNITS,
   STATUS_LABELS,
   canCreateTask,
   canSeeAllTasks,
-  isOrgUnit,
   shortOrgUnit,
 } from "@/lib/constants";
-import { isLocalMode, listTasks } from "@/lib/repo";
+import { isLocalMode, listOrgUnits, listTasks } from "@/lib/repo";
 import type { TaskStatus } from "@/lib/types";
 
 const statusStyle: Record<TaskStatus, string> = {
@@ -37,7 +35,8 @@ export default async function PanelPage({
     sp.status && sp.status in STATUS_LABELS
       ? (sp.status as TaskStatus)
       : undefined;
-  const orgFilter = sp.orgUnit && isOrgUnit(sp.orgUnit) ? sp.orgUnit : undefined;
+  const allUnits = (await listOrgUnits()).map((o) => o.name);
+  const orgFilter = sp.orgUnit && allUnits.includes(sp.orgUnit) ? sp.orgUnit : undefined;
 
   const tasks = await listTasks({
     access: canSeeAllTasks(session.user.role) ? undefined : accessOf(session),
@@ -48,11 +47,10 @@ export default async function PanelPage({
 
   const unassigned = tasks.filter((t) => !t.orgUnit && !t.assigneeId).length;
 
-  const orgOptions = canSeeAllTasks(session.user.role)
-    ? ORG_UNITS
-    : session.user.orgUnit
-      ? ([session.user.orgUnit] as unknown as typeof ORG_UNITS)
-      : ORG_UNITS;
+  const orgOptions =
+    !canSeeAllTasks(session.user.role) && session.user.orgUnit
+      ? [session.user.orgUnit]
+      : allUnits;
 
   return (
     <div>

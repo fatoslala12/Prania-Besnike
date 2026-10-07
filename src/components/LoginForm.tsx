@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -91,12 +92,9 @@ export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
       )}
 
       <p className="text-center text-sm">
-        <a
-          href="mailto:privatesia@praniabesnike.com"
-          className="text-brand underline underline-offset-4"
-        >
+        <Link href="/hyr/harrova" className="text-brand underline underline-offset-4">
           Harrova fjalëkalimin
-        </a>
+        </Link>
       </p>
     </form>
   );

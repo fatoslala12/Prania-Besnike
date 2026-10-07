@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Notice } from "@/components/Notice";
-import { ORG_UNITS } from "@/lib/constants";
 
-export function NewTaskForm() {
+export function NewTaskForm({ orgUnits }: { orgUnits: string[] }) {
   const router = useRouter();
   const [orgUnit, setOrgUnit] = useState("");
   const [error, setError] = useState("");
@@ -103,7 +102,7 @@ export function NewTaskForm() {
           onChange={(e) => setOrgUnit(e.target.value)}
         >
           <option value="">Zgjidhni drejtorinë / agjencinë...</option>
-          {ORG_UNITS.map((m) => (
+          {orgUnits.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>

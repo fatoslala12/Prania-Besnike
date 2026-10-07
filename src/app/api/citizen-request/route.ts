@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isOrgUnit } from "@/lib/constants";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { notifyTaskChange } from "@/lib/notify";
 import { createPdfToken } from "@/lib/pdf-token";
-import { createTask } from "@/lib/repo";
+import { createTask, isActiveOrgUnit } from "@/lib/repo";
 
 const MIN_FILL_MS = 3000;
 
@@ -18,7 +17,7 @@ const schema = z.object({
     .max(40)
     .regex(/^[+\d\s()-]+$/),
   requestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  orgUnit: z.string().refine(isOrgUnit),
+  orgUnit: z.string().min(1).max(200),
   description: z.string().trim().min(10).max(5000),
   consent: z.literal(true),
   website: z.string().nullish(),
@@ -53,6 +52,12 @@ export async function POST(req: Request) {
     const tooFast = !data.startedAt || Date.now() - data.startedAt < MIN_FILL_MS;
     if (data.website || tooFast) {
       return NextResponse.json({ ok: true });
+    }
+    if (!(await isActiveOrgUnit(data.orgUnit))) {
+      return NextResponse.json(
+        { error: "Drejtoria e zgjedhur nuk është më e disponueshme. Rifreskoni faqen dhe zgjidhni sërish." },
+        { status: 400 },
+      );
     }
 
     const actor = { id: null, name: "Qytetar (formular publik)" };

@@ -22,6 +22,8 @@ export type AuthUser = {
   role: Role;
   orgUnit: string | null;
   active: boolean;
+  mustChangePassword: boolean;
+  sessionVersion: number;
 };
 
 export type UserView = {
@@ -31,11 +33,24 @@ export type UserView = {
   username: string;
   role: Role;
   orgUnit: string | null;
+  active: boolean;
+  mustChangePassword: boolean;
   emailNotifications: boolean;
   createdAt: string;
 };
 
+export type UserPatch = Partial<Pick<UserView, "name" | "email" | "username" | "role" | "orgUnit">>;
+
 export type PasswordChangeResult = "OK" | "WRONG_PASSWORD" | "NOT_FOUND";
+
+export type OrgUnitView = {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+};
+
+export type OrgUnitUsage = { users: number; tasks: number; openTasks: number };
 
 export type TaskRecord = {
   id: string;
@@ -70,7 +85,11 @@ export type DocumentRecord = {
   createdAt: string;
   taskId: string;
   uploadedById: string;
+  sentAt: string | null;
+  sentTo: string | null;
 };
+
+export type NewDocumentInput = Omit<DocumentRecord, "id" | "createdAt" | "sentAt" | "sentTo">;
 
 export type DocumentView = DocumentRecord & { uploadedBy: { name: string } };
 

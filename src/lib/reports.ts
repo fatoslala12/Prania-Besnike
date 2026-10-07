@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { STATUS_LABELS, isOrgUnit } from "@/lib/constants";
+import { STATUS_LABELS } from "@/lib/constants";
 import type { ReportData, ReportTask, TaskStatus } from "@/lib/types";
 
 export const PUBLIC_CREATOR = "public";
@@ -27,7 +27,8 @@ function param(sp: RawParams, key: string) {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
-export function parseReportFilter(sp: RawParams): ReportFilter {
+/** `unitNames`: të gjitha drejtoritë, edhe të çaktivizuarat, që raportet e vjetra të filtrohen. */
+export function parseReportFilter(sp: RawParams, unitNames: string[]): ReportFilter {
   const today = new Date();
   const valid = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   let from = valid(param(sp, "from")) ?? isoDay(new Date(today.getTime() - 29 * DAY_MS));
@@ -40,7 +41,7 @@ export function parseReportFilter(sp: RawParams): ReportFilter {
   return {
     from,
     to,
-    orgUnit: orgUnit && (isOrgUnit(orgUnit) || orgUnit === "none") ? orgUnit : undefined,
+    orgUnit: orgUnit && (unitNames.includes(orgUnit) || orgUnit === "none") ? orgUnit : undefined,
     status: status && status in STATUS_LABELS ? (status as TaskStatus) : undefined,
     source: source === "citizen" || source === "internal" ? source : undefined,
     creatorId: param(sp, "creatorId"),

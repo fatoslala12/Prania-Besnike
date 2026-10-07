@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { accessOf, actorOf } from "@/lib/auth-helpers";
-import { canAccessTask, canAssignTask, canRedelegate, isOrgUnit } from "@/lib/constants";
+import { canAccessTask, canAssignTask, canRedelegate } from "@/lib/constants";
 import { notifyTaskChange } from "@/lib/notify";
-import { addComment, deleteTask, getTask, getTaskDetail, updateTask } from "@/lib/repo";
+import {
+  addComment,
+  deleteTask,
+  getTask,
+  getTaskDetail,
+  isActiveOrgUnit,
+  updateTask,
+} from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,7 +37,7 @@ const updateSchema = z.object({
   description: z.string().trim().min(3).max(10000).optional(),
   status: z.enum(["I_RI", "NE_PROCES", "PERFUNDUAR", "BLOKUAR"]).optional(),
   assigneeId: z.string().nullable().optional(),
-  orgUnit: z.string().refine(isOrgUnit, "Njësi e panjohur").nullable().optional(),
+  orgUnit: z.string().min(1).max(200).nullable().optional(),
   comment: z.string().trim().max(5000).optional(),
 });
 
@@ -79,6 +86,13 @@ export async function PATCH(req: Request, { params }: Params) {
       { error: "Çështja është e mbyllur. Rihapeni që ta ri-delegoni ose ndryshoni." },
       { status: 409 },
     );
+  }
+  if (
+    patch.orgUnit &&
+    patch.orgUnit !== existing.orgUnit &&
+    !(await isActiveOrgUnit(patch.orgUnit))
+  ) {
+    return NextResponse.json({ error: "Drejtoria e zgjedhur nuk është aktive" }, { status: 400 });
   }
 
   const actor = actorOf(session);

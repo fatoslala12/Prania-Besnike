@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { accessOf, requireSession } from "@/lib/auth-helpers";
 import { canAccessTask, canAssignTask, canRespond } from "@/lib/constants";
-import { getTaskDetail, listUsers } from "@/lib/repo";
+import { activeOrgUnitNames, getTaskDetail, listUsers } from "@/lib/repo";
 import { TaskDetail } from "@/components/TaskDetail";
 
 type Props = { params: Promise<{ id: string }> };
@@ -15,7 +15,7 @@ export default async function TaskPage({ params }: Props) {
   if (!task) notFound();
   if (!canAccessTask(accessOf(session), task)) redirect("/panel");
 
-  const allUsers = await listUsers();
+  const [allUsers, orgUnits] = await Promise.all([listUsers(), activeOrgUnitNames()]);
   const users = allUsers
     .filter((u) => canAssignTask(session.user.role) || u.orgUnit === task.orgUnit)
     .map((u) => ({ id: u.id, name: u.name, role: u.role, orgUnit: u.orgUnit }));
@@ -32,6 +32,7 @@ export default async function TaskPage({ params }: Props) {
         <TaskDetail
           task={task}
           users={users}
+          orgUnits={orgUnits}
           role={session.user.role}
           canDelete={session.user.role === "ADMIN"}
           canRespond={canRespond(accessOf(session), task)}

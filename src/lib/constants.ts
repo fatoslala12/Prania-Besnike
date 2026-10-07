@@ -15,8 +15,11 @@ export const STATUS_LABELS = {
   BLOKUAR: "Bllokuar",
 } as const;
 
-/** Drejtori & agjensi — lista fillestare (mund të shtohen më vonë) */
-export const ORG_UNITS = [
+/**
+ * Lista fillestare e drejtorive & agjencive. Lista e vërtetë mbahet në databazë
+ * (Përdoruesit → Drejtoritë); kjo përdoret vetëm për mbushjen e parë të saj.
+ */
+export const DEFAULT_ORG_UNITS = [
   "Agjencia e Sigurimit dhe Cilësisë së Kujdesit Shëndetësor",
   "Agjencia Kombëtare e Barnave",
   "Agjencia Shtetërore për Mbrojtjen e të Drejtave të Fëmijëve",
@@ -32,10 +35,8 @@ export const ORG_UNITS = [
   "OSHKSH",
 ] as const;
 
-export type OrgUnit = (typeof ORG_UNITS)[number];
-
-export function isOrgUnit(value: unknown): value is OrgUnit {
-  return typeof value === "string" && (ORG_UNITS as readonly string[]).includes(value);
+export function normalizeOrgUnitName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
 }
 
 export function canCreateTask(role: Role) {

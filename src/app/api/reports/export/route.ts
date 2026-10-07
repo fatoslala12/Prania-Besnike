@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canViewReports } from "@/lib/constants";
 import { buildReport, filterRange, parseReportFilter, reportCsv } from "@/lib/reports";
-import { getReportData } from "@/lib/repo";
+import { getReportData, listOrgUnits } from "@/lib/repo";
 
 const TYPES = new Set(["tasks", "units", "creators", "activity"]);
 
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
 
   const sp = Object.fromEntries(new URL(req.url).searchParams);
-  const filter = parseReportFilter(sp);
+  const filter = parseReportFilter(sp, (await listOrgUnits()).map((o) => o.name));
   const type = TYPES.has(sp.type) ? sp.type : "tasks";
   const report = buildReport(await getReportData(filterRange(filter)), filter);
 

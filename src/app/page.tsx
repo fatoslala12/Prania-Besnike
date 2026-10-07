@@ -13,6 +13,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { HeroSection } from "@/components/HeroSection";
 import { CitizenForm } from "@/components/CitizenForm";
 import { auth } from "@/auth";
+import { activeOrgUnitNames } from "@/lib/repo";
 
 const besaPillars = [
   {
@@ -38,7 +39,7 @@ const besaPillars = [
 ];
 
 export default async function HomePage() {
-  const session = await auth();
+  const [session, orgUnits] = await Promise.all([auth(), activeOrgUnitNames()]);
   const isLoggedIn = Boolean(session?.user);
 
   return (
@@ -289,7 +290,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="mt-8">
-            <CitizenForm />
+            <CitizenForm orgUnits={orgUnits} />
           </div>
         </section>
       </main>

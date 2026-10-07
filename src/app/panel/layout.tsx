@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/auth-helpers";
 import { DeveloperCredit } from "@/components/DeveloperCredit";
+import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { PanelNav } from "@/components/PanelNav";
 
 export default async function PanelLayout({
@@ -8,6 +9,10 @@ export default async function PanelLayout({
   children: React.ReactNode;
 }) {
   const session = await requireSession();
+
+  if (session.user.mustChangePassword) {
+    return <ForcePasswordChange name={session.user.name} username={session.user.username} />;
+  }
 
   return (
     <div className="flex min-h-full flex-col bg-bg">

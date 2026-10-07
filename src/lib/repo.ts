@@ -6,10 +6,13 @@ import type {
   CommentView,
   DashboardStats,
   DocumentRecord,
+  NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
   NotificationView,
+  OrgUnitUsage,
+  OrgUnitView,
   PasswordChangeResult,
   ReportData,
   ResponseInput,
@@ -20,6 +23,7 @@ import type {
   TaskListItem,
   TaskPatch,
   TaskRecord,
+  UserPatch,
   UserView,
 } from "@/lib/types";
 
@@ -42,12 +46,90 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
   return (await store()).findUserByLogin(login);
 }
 
+export async function findUserById(id: string): Promise<AuthUser | null> {
+  return (await store()).findUserById(id);
+}
+
 export async function listUsers(): Promise<UserView[]> {
   return (await store()).listUsers();
 }
 
+/** Përfshin edhe përdoruesit e çaktivizuar (vetëm për administrimin). */
+export async function listAllUsers(): Promise<UserView[]> {
+  return (await store()).listAllUsers();
+}
+
 export async function getUser(id: string): Promise<UserView | null> {
   return (await store()).getUser(id);
+}
+
+export async function getAnyUser(id: string): Promise<UserView | null> {
+  return (await store()).getAnyUser(id);
+}
+
+export async function updateUser(id: string, patch: UserPatch): Promise<UserView | null> {
+  return (await store()).updateUser(id, patch);
+}
+
+export async function setUserActive(id: string, active: boolean): Promise<UserView | null> {
+  return (await store()).setUserActive(id, active);
+}
+
+/** Mbyll seancat e hapura dhe e detyron përdoruesin ta ndryshojë në hyrjen e radhës. */
+export async function setTemporaryPassword(id: string, password: string): Promise<boolean> {
+  return (await store()).setTemporaryPassword(id, password);
+}
+
+export async function countActiveAdmins(excludeId?: string): Promise<number> {
+  return (await store()).countActiveAdmins(excludeId);
+}
+
+export async function createPasswordResetToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: Date,
+): Promise<void> {
+  await (await store()).createPasswordResetToken(userId, tokenHash, expiresAt);
+}
+
+export async function isPasswordResetTokenValid(tokenHash: string): Promise<boolean> {
+  return (await store()).isPasswordResetTokenValid(tokenHash);
+}
+
+export async function resetPasswordWithToken(
+  tokenHash: string,
+  password: string,
+): Promise<"OK" | "INVALID"> {
+  return (await store()).resetPasswordWithToken(tokenHash, password);
+}
+
+export async function listOrgUnits(): Promise<OrgUnitView[]> {
+  const units = await (await store()).listOrgUnits();
+  return [...units].sort((a, b) => a.name.localeCompare(b.name, "sq"));
+}
+
+export async function activeOrgUnitNames(): Promise<string[]> {
+  return (await listOrgUnits()).filter((o) => o.active).map((o) => o.name);
+}
+
+export async function isActiveOrgUnit(name: string): Promise<boolean> {
+  return (await activeOrgUnitNames()).includes(name);
+}
+
+export async function orgUnitUsage(): Promise<Record<string, OrgUnitUsage>> {
+  return (await store()).orgUnitUsage();
+}
+
+export async function createOrgUnit(name: string): Promise<OrgUnitView> {
+  return (await store()).createOrgUnit(name);
+}
+
+export async function renameOrgUnit(id: string, name: string): Promise<OrgUnitView | null> {
+  return (await store()).renameOrgUnit(id, name);
+}
+
+export async function setOrgUnitActive(id: string, active: boolean): Promise<OrgUnitView | null> {
+  return (await store()).setOrgUnitActive(id, active);
 }
 
 export async function changePassword(
@@ -69,6 +151,7 @@ export async function createUser(input: {
   password: string;
   role: Role;
   orgUnit: string | null;
+  mustChangePassword?: boolean;
 }): Promise<UserView> {
   return (await store()).createUser(input);
 }
@@ -110,7 +193,7 @@ export async function addComment(
 }
 
 export async function addDocument(
-  doc: Omit<DocumentRecord, "id" | "createdAt">,
+  doc: NewDocumentInput,
   uploader: Actor & { id: string },
 ): Promise<DocumentRecord> {
   return (await store()).addDocument(doc, uploader);
@@ -121,6 +204,15 @@ export async function getDocument(
   docId: string,
 ): Promise<DocumentRecord | null> {
   return (await store()).getDocument(taskId, docId);
+}
+
+export async function markDocumentSent(
+  taskId: string,
+  docId: string,
+  to: string,
+  sentAt: Date,
+): Promise<DocumentRecord | null> {
+  return (await store()).markDocumentSent(taskId, docId, to, sentAt);
 }
 
 export async function addResponse(

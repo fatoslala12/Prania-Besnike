@@ -21,10 +21,13 @@ import type {
   DocumentRecord,
   EventMeta,
   HistoryView,
+  NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
   NotificationView,
+  OrgUnitUsage,
+  OrgUnitView,
   PasswordChangeResult,
   ReportData,
   ResponseInput,
@@ -35,10 +38,20 @@ import type {
   TaskListItem,
   TaskPatch,
   TaskRecord,
+  UserPatch,
   UserView,
 } from "@/lib/types";
 
 type TaskRow = Prisma.TaskGetPayload<object>;
+type DocumentRow = Prisma.DocumentGetPayload<object>;
+
+function toDocumentRecord(d: DocumentRow): DocumentRecord {
+  return {
+    ...d,
+    createdAt: d.createdAt.toISOString(),
+    sentAt: d.sentAt?.toISOString() ?? null,
+  };
+}
 
 function toTaskRecord(t: TaskRow): TaskRecord {
   return {
@@ -126,6 +139,27 @@ async function userName(id: string | null) {
   return u?.name ?? null;
 }
 
+type UserRow = Prisma.UserGetPayload<object>;
+
+function toAuthUser(u: UserRow): AuthUser {
+  return {
+    id: u.id,
+    email: u.email,
+    username: u.username,
+    name: u.name,
+    passwordHash: u.passwordHash,
+    role: u.role,
+    orgUnit: u.orgUnit,
+    active: u.active,
+    mustChangePassword: u.mustChangePassword,
+    sessionVersion: u.sessionVersion,
+  };
+}
+
+function isUniqueViolation(e: unknown) {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
 export async function findUserByLogin(login: string): Promise<AuthUser | null> {
   const u = await prisma.user.findFirst({
     where: {
@@ -136,21 +170,16 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
       ],
     },
   });
-  return u
-    ? {
-        id: u.id,
-        email: u.email,
-        username: u.username,
-        name: u.name,
-        passwordHash: u.passwordHash,
-        role: u.role,
-        orgUnit: u.orgUnit,
-        active: u.active,
-      }
-    : null;
+  return u ? toAuthUser(u) : null;
 }
 
-function toUserView(u: Prisma.UserGetPayload<object>): UserView {
+/** Edhe përdoruesit joaktivë — që seanca e tyre të mbyllet. */
+export async function findUserById(id: string): Promise<AuthUser | null> {
+  const u = await prisma.user.findUnique({ where: { id } });
+  return u ? toAuthUser(u) : null;
+}
+
+function toUserView(u: UserRow): UserView {
   return {
     id: u.id,
     name: u.name,
@@ -158,6 +187,8 @@ function toUserView(u: Prisma.UserGetPayload<object>): UserView {
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    active: u.active,
+    mustChangePassword: u.mustChangePassword,
     emailNotifications: u.emailNotifications,
     createdAt: u.createdAt.toISOString(),
   };
@@ -171,8 +202,18 @@ export async function listUsers(): Promise<UserView[]> {
   return users.map(toUserView);
 }
 
+export async function listAllUsers(): Promise<UserView[]> {
+  const users = await prisma.user.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] });
+  return users.map(toUserView);
+}
+
 export async function getUser(id: string): Promise<UserView | null> {
   const u = await prisma.user.findFirst({ where: { id, active: true } });
+  return u ? toUserView(u) : null;
+}
+
+export async function getAnyUser(id: string): Promise<UserView | null> {
+  const u = await prisma.user.findUnique({ where: { id } });
   return u ? toUserView(u) : null;
 }
 
@@ -186,7 +227,7 @@ export async function changePassword(
   if (!(await bcrypt.compare(current, u.passwordHash))) return "WRONG_PASSWORD";
   await prisma.user.update({
     where: { id },
-    data: { passwordHash: await bcrypt.hash(next, 12) },
+    data: { passwordHash: await bcrypt.hash(next, 12), mustChangePassword: false },
   });
   return "OK";
 }
@@ -202,6 +243,7 @@ export async function createUser(input: {
   password: string;
   role: Role;
   orgUnit: string | null;
+  mustChangePassword?: boolean;
 }): Promise<UserView> {
   try {
     const u = await prisma.user.create({
@@ -212,15 +254,169 @@ export async function createUser(input: {
         passwordHash: await bcrypt.hash(input.password, 12),
         role: input.role,
         orgUnit: input.orgUnit,
+        mustChangePassword: input.mustChangePassword ?? false,
       },
     });
     return toUserView(u);
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      throw new Error("EXISTS");
-    }
+    if (isUniqueViolation(e)) throw new Error("EXISTS");
     throw e;
   }
+}
+
+export async function updateUser(id: string, patch: UserPatch): Promise<UserView | null> {
+  try {
+    const u = await prisma.user.update({ where: { id }, data: patch });
+    return toUserView(u);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new Error("EXISTS");
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") return null;
+    throw e;
+  }
+}
+
+export async function setUserActive(id: string, active: boolean): Promise<UserView | null> {
+  const found = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!found) return null;
+  const u = await prisma.user.update({
+    where: { id },
+    data: { active, ...(active ? {} : { sessionVersion: { increment: 1 } }) },
+  });
+  return toUserView(u);
+}
+
+export async function setTemporaryPassword(id: string, password: string): Promise<boolean> {
+  const found = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!found) return false;
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash: await bcrypt.hash(password, 12),
+        mustChangePassword: true,
+        sessionVersion: { increment: 1 },
+      },
+    }),
+    prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
+  ]);
+  return true;
+}
+
+export async function countActiveAdmins(excludeId?: string) {
+  return prisma.user.count({
+    where: { role: "ADMIN", active: true, ...(excludeId ? { id: { not: excludeId } } : {}) },
+  });
+}
+
+export async function createPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date) {
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({
+      where: { OR: [{ userId }, { expiresAt: { lt: new Date() } }] },
+    }),
+    prisma.passwordResetToken.create({ data: { userId, tokenHash, expiresAt } }),
+  ]);
+}
+
+export async function isPasswordResetTokenValid(tokenHash: string) {
+  const t = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: { user: { select: { active: true } } },
+  });
+  return !!t && !t.usedAt && t.expiresAt > new Date() && t.user.active;
+}
+
+export async function resetPasswordWithToken(
+  tokenHash: string,
+  password: string,
+): Promise<"OK" | "INVALID"> {
+  const passwordHash = await bcrypt.hash(password, 12);
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: now }, user: { active: true } },
+      data: { usedAt: now },
+    });
+    if (claimed.count === 0) return "INVALID";
+    const t = await tx.passwordResetToken.findUniqueOrThrow({ where: { tokenHash } });
+    await tx.user.update({
+      where: { id: t.userId },
+      data: { passwordHash, mustChangePassword: false, sessionVersion: { increment: 1 } },
+    });
+    await tx.passwordResetToken.deleteMany({ where: { userId: t.userId, id: { not: t.id } } });
+    return "OK";
+  });
+}
+
+function toOrgUnitView(o: Prisma.OrgUnitGetPayload<object>): OrgUnitView {
+  return { id: o.id, name: o.name, active: o.active, createdAt: o.createdAt.toISOString() };
+}
+
+export async function listOrgUnits(): Promise<OrgUnitView[]> {
+  return (await prisma.orgUnit.findMany()).map(toOrgUnitView);
+}
+
+export async function orgUnitUsage(): Promise<Record<string, OrgUnitUsage>> {
+  const [users, tasks, open] = await Promise.all([
+    prisma.user.groupBy({ by: ["orgUnit"], where: { active: true }, _count: { _all: true } }),
+    prisma.task.groupBy({ by: ["orgUnit"], _count: { _all: true } }),
+    prisma.task.groupBy({
+      by: ["orgUnit"],
+      where: { status: { in: ["I_RI", "NE_PROCES"] } },
+      _count: { _all: true },
+    }),
+  ]);
+  const usage: Record<string, OrgUnitUsage> = {};
+  const at = (name: string) => (usage[name] ??= { users: 0, tasks: 0, openTasks: 0 });
+  for (const r of users) if (r.orgUnit) at(r.orgUnit).users = r._count._all;
+  for (const r of tasks) if (r.orgUnit) at(r.orgUnit).tasks = r._count._all;
+  for (const r of open) if (r.orgUnit) at(r.orgUnit).openTasks = r._count._all;
+  return usage;
+}
+
+async function orgUnitNameTaken(name: string, exceptId?: string) {
+  const clash = await prisma.orgUnit.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { id: true },
+  });
+  return !!clash;
+}
+
+export async function createOrgUnit(name: string): Promise<OrgUnitView> {
+  if (await orgUnitNameTaken(name)) throw new Error("EXISTS");
+  try {
+    return toOrgUnitView(await prisma.orgUnit.create({ data: { name } }));
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new Error("EXISTS");
+    throw e;
+  }
+}
+
+/** Emri i ri vlen edhe për detyrat dhe përdoruesit; përgjigjet e lëshuara mbajnë emrin me të cilin u nënshkruan. */
+export async function renameOrgUnit(id: string, name: string): Promise<OrgUnitView | null> {
+  const current = await prisma.orgUnit.findUnique({ where: { id } });
+  if (!current) return null;
+  if (current.name === name) return toOrgUnitView(current);
+  if (await orgUnitNameTaken(name, id)) throw new Error("EXISTS");
+  try {
+    const [updated] = await prisma.$transaction([
+      prisma.orgUnit.update({ where: { id }, data: { name } }),
+      prisma.user.updateMany({ where: { orgUnit: current.name }, data: { orgUnit: name } }),
+      prisma.task.updateMany({ where: { orgUnit: current.name }, data: { orgUnit: name } }),
+    ]);
+    return toOrgUnitView(updated);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new Error("EXISTS");
+    throw e;
+  }
+}
+
+export async function setOrgUnitActive(id: string, active: boolean): Promise<OrgUnitView | null> {
+  const found = await prisma.orgUnit.findUnique({ where: { id }, select: { id: true } });
+  if (!found) return null;
+  return toOrgUnitView(await prisma.orgUnit.update({ where: { id }, data: { active } }));
 }
 
 export async function getTask(id: string): Promise<TaskRecord | null> {
@@ -285,10 +481,7 @@ export async function getTaskDetail(id: string): Promise<TaskDetailView | null> 
     ...toTaskRecord(t),
     assignee: t.assignee,
     creator: t.creator,
-    documents: t.documents.map((d) => ({
-      ...d,
-      createdAt: d.createdAt.toISOString(),
-    })),
+    documents: t.documents.map((d) => ({ ...toDocumentRecord(d), uploadedBy: d.uploadedBy })),
     comments: t.comments.map((c) => ({
       ...c,
       createdAt: c.createdAt.toISOString(),
@@ -386,7 +579,7 @@ export async function addComment(
 }
 
 export async function addDocument(
-  doc: Omit<DocumentRecord, "id" | "createdAt">,
+  doc: NewDocumentInput,
   uploader: Actor & { id: string },
 ): Promise<DocumentRecord> {
   const [created] = await prisma.$transaction([
@@ -395,7 +588,7 @@ export async function addDocument(
       data: eventRows(doc.taskId, [documentEvent(doc.originalName)], uploader),
     }),
   ]);
-  return { ...created, createdAt: created.createdAt.toISOString() };
+  return toDocumentRecord(created);
 }
 
 export async function getDocument(
@@ -403,7 +596,17 @@ export async function getDocument(
   docId: string,
 ): Promise<DocumentRecord | null> {
   const d = await prisma.document.findFirst({ where: { id: docId, taskId } });
-  return d ? { ...d, createdAt: d.createdAt.toISOString() } : null;
+  return d ? toDocumentRecord(d) : null;
+}
+
+export async function markDocumentSent(
+  taskId: string,
+  docId: string,
+  to: string,
+  sentAt: Date,
+): Promise<DocumentRecord | null> {
+  await prisma.document.updateMany({ where: { id: docId, taskId }, data: { sentAt, sentTo: to } });
+  return getDocument(taskId, docId);
 }
 
 export async function addResponse(

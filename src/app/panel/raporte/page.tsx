@@ -3,7 +3,6 @@ import { format, startOfMonth, startOfYear, subDays } from "date-fns";
 import { Download } from "lucide-react";
 import { requireRole } from "@/lib/auth-helpers";
 import {
-  ORG_UNITS,
   ROLE_LABELS,
   STATUS_LABELS,
   canCreateTask,
@@ -20,7 +19,7 @@ import {
   pct,
   type ReportFilter,
 } from "@/lib/reports";
-import { getReportData, listUsers } from "@/lib/repo";
+import { getReportData, listOrgUnits, listUsers } from "@/lib/repo";
 import { MobileFilters } from "@/components/MobileFilters";
 import { PrintButton } from "@/components/PrintButton";
 import type { TaskStatus } from "@/lib/types";
@@ -85,7 +84,8 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireRole(["ADMIN", "RECEPSION"]);
-  const filter = parseReportFilter(await searchParams);
+  const units = (await listOrgUnits()).map((o) => o.name);
+  const filter = parseReportFilter(await searchParams, units);
   const [data, users] = await Promise.all([getReportData(filterRange(filter)), listUsers()]);
   const r = buildReport(data, filter);
   const t = r.totals;
@@ -179,7 +179,7 @@ export default async function ReportsPage({
             <select id="orgUnit" name="orgUnit" defaultValue={filter.orgUnit ?? ""} className="field">
               <option value="">Të gjitha</option>
               <option value="none">— Pa delegim —</option>
-              {ORG_UNITS.map((o) => (
+              {units.map((o) => (
                 <option key={o} value={o}>{o}</option>
               ))}
             </select>

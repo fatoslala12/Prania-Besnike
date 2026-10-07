@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth-helpers";
 import { canCreateTask } from "@/lib/constants";
+import { activeOrgUnitNames } from "@/lib/repo";
 import { NewTaskForm } from "@/components/NewTaskForm";
 
 export const metadata = { title: "Detyrë e re" };
@@ -18,7 +19,7 @@ export default async function NewTaskPage() {
         Delegoni te drejtoria/agjencia — të gjithë përdoruesit e saj e shohin dhe e trajtojnë.
       </p>
       <div className="mt-6">
-        <NewTaskForm />
+        <NewTaskForm orgUnits={await activeOrgUnitNames()} />
       </div>
     </div>
   );

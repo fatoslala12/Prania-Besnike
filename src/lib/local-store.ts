@@ -15,6 +15,7 @@ import {
   type EventDraft,
 } from "@/lib/task-events";
 import { computeStats } from "@/lib/stats";
+import { DEFAULT_ORG_UNITS } from "@/lib/constants";
 import type {
   Actor,
   AuthUser,
@@ -24,10 +25,13 @@ import type {
   EventMeta,
   EventType,
   HistoryView,
+  NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
   NotificationView,
+  OrgUnitUsage,
+  OrgUnitView,
   PasswordChangeResult,
   ReportData,
   ResponseInput,
@@ -39,15 +43,30 @@ import type {
   TaskPatch,
   TaskRecord,
   TaskStatus,
+  UserPatch,
   UserView,
 } from "@/lib/types";
 
 export type { Role, TaskStatus };
 
-type LocalUser = AuthUser & {
+type LocalUser = Omit<AuthUser, "mustChangePassword" | "sessionVersion"> & {
   emailNotifications?: boolean;
+  mustChangePassword?: boolean;
+  sessionVersion?: number;
   createdAt: string;
   updatedAt: string;
+};
+
+type LocalDocument = Omit<DocumentRecord, "sentAt" | "sentTo"> &
+  Partial<Pick<DocumentRecord, "sentAt" | "sentTo">>;
+
+type LocalResetToken = {
+  id: string;
+  tokenHash: string;
+  userId: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
 };
 
 type LocalComment = {
@@ -79,10 +98,12 @@ type StoreData = {
   users: LocalUser[];
   tasks: TaskRecord[];
   comments: LocalComment[];
-  documents: DocumentRecord[];
+  documents: LocalDocument[];
   responses: LocalResponse[];
   events: LocalEvent[];
   notifications: NotificationView[];
+  orgUnits: OrgUnitView[];
+  resetTokens: LocalResetToken[];
 };
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -136,7 +157,16 @@ function emptyStore(): StoreData {
     responses: [],
     events: [],
     notifications: [],
+    orgUnits: [],
+    resetTokens: [],
   };
+}
+
+function seedOrgUnits(data: StoreData): OrgUnitView[] {
+  const now = new Date().toISOString();
+  const names = new Set<string>(DEFAULT_ORG_UNITS);
+  for (const x of [...data.users, ...data.tasks]) if (x.orgUnit) names.add(x.orgUnit);
+  return [...names].map((name) => ({ id: randomUUID(), name, active: true, createdAt: now }));
 }
 
 /** Përshtat skedarë JSON të krijuar nga versione të mëparshme. */
@@ -189,6 +219,7 @@ function readStore(): StoreData {
   ensureDir();
   if (!existsSync(STORE_PATH)) {
     const data = emptyStore();
+    data.orgUnits = seedOrgUnits(data);
     writeStore(data);
     return data;
   }
@@ -200,7 +231,13 @@ function readStore(): StoreData {
   data.responses ||= [];
   data.events ||= [];
   data.notifications ||= [];
-  if (migrate(data)) writeStore(data);
+  data.resetTokens ||= [];
+  let dirty = migrate(data);
+  if (!data.orgUnits?.length) {
+    data.orgUnits = seedOrgUnits(data);
+    dirty = true;
+  }
+  if (dirty) writeStore(data);
   return data;
 }
 
@@ -238,9 +275,30 @@ function toUserView(u: LocalUser): UserView {
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    active: u.active,
+    mustChangePassword: u.mustChangePassword ?? false,
     emailNotifications: u.emailNotifications ?? true,
     createdAt: u.createdAt,
   };
+}
+
+function toAuthUser(u: LocalUser): AuthUser {
+  return {
+    id: u.id,
+    email: u.email,
+    username: u.username,
+    name: u.name,
+    passwordHash: u.passwordHash,
+    role: u.role,
+    orgUnit: u.orgUnit,
+    active: u.active,
+    mustChangePassword: u.mustChangePassword ?? false,
+    sessionVersion: u.sessionVersion ?? 0,
+  };
+}
+
+function toDocumentRecord(d: LocalDocument): DocumentRecord {
+  return { ...d, sentAt: d.sentAt ?? null, sentTo: d.sentTo ?? null };
 }
 
 function userName(store: StoreData, id: string | null) {
@@ -257,13 +315,15 @@ function toHistory(store: StoreData, e: LocalEvent): HistoryView {
 
 export function findUserByLogin(login: string): AuthUser | null {
   const q = login.trim().toLowerCase();
-  return (
-    readStore().users.find(
-      (u) =>
-        u.active &&
-        (u.email.toLowerCase() === q || u.username.toLowerCase() === q),
-    ) ?? null
+  const u = readStore().users.find(
+    (x) => x.active && (x.email.toLowerCase() === q || x.username.toLowerCase() === q),
   );
+  return u ? toAuthUser(u) : null;
+}
+
+export function findUserById(id: string): AuthUser | null {
+  const u = readStore().users.find((x) => x.id === id);
+  return u ? toAuthUser(u) : null;
 }
 
 export function listUsers(): UserView[] {
@@ -273,8 +333,19 @@ export function listUsers(): UserView[] {
     .map(toUserView);
 }
 
+export function listAllUsers(): UserView[] {
+  return [...readStore().users]
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
+    .map(toUserView);
+}
+
 export function getUser(id: string): UserView | null {
   const u = readStore().users.find((x) => x.id === id && x.active);
+  return u ? toUserView(u) : null;
+}
+
+export function getAnyUser(id: string): UserView | null {
+  const u = readStore().users.find((x) => x.id === id);
   return u ? toUserView(u) : null;
 }
 
@@ -284,9 +355,154 @@ export function changePassword(id: string, current: string, next: string): Passw
   if (!u) return "NOT_FOUND";
   if (!bcrypt.compareSync(current, u.passwordHash)) return "WRONG_PASSWORD";
   u.passwordHash = bcrypt.hashSync(next, 10);
+  u.mustChangePassword = false;
   u.updatedAt = new Date().toISOString();
   writeStore(store);
   return "OK";
+}
+
+function loginTaken(store: StoreData, email: string, username: string, exceptId?: string) {
+  return store.users.some(
+    (u) =>
+      u.id !== exceptId &&
+      (u.email.toLowerCase() === email.toLowerCase() ||
+        u.username.toLowerCase() === username.toLowerCase()),
+  );
+}
+
+export function updateUser(id: string, patch: UserPatch): UserView | null {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === id);
+  if (!u) return null;
+  const next = { ...u, ...patch };
+  if (loginTaken(store, next.email, next.username, id)) throw new Error("EXISTS");
+  Object.assign(u, patch, { updatedAt: new Date().toISOString() });
+  writeStore(store);
+  return toUserView(u);
+}
+
+export function setUserActive(id: string, active: boolean): UserView | null {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === id);
+  if (!u) return null;
+  u.active = active;
+  if (!active) u.sessionVersion = (u.sessionVersion ?? 0) + 1;
+  u.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return toUserView(u);
+}
+
+export function setTemporaryPassword(id: string, password: string): boolean {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === id);
+  if (!u) return false;
+  u.passwordHash = bcrypt.hashSync(password, 10);
+  u.mustChangePassword = true;
+  u.sessionVersion = (u.sessionVersion ?? 0) + 1;
+  u.updatedAt = new Date().toISOString();
+  store.resetTokens = store.resetTokens.filter((t) => t.userId !== id);
+  writeStore(store);
+  return true;
+}
+
+export function countActiveAdmins(excludeId?: string) {
+  return readStore().users.filter((u) => u.role === "ADMIN" && u.active && u.id !== excludeId)
+    .length;
+}
+
+export function createPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date) {
+  const store = readStore();
+  const now = new Date().toISOString();
+  store.resetTokens = store.resetTokens.filter((t) => t.userId !== userId && t.expiresAt > now);
+  store.resetTokens.push({
+    id: randomUUID(),
+    tokenHash,
+    userId,
+    expiresAt: expiresAt.toISOString(),
+    usedAt: null,
+    createdAt: now,
+  });
+  writeStore(store);
+}
+
+function validResetToken(store: StoreData, tokenHash: string) {
+  const now = new Date().toISOString();
+  const t = store.resetTokens.find((x) => x.tokenHash === tokenHash);
+  if (!t || t.usedAt || t.expiresAt <= now) return null;
+  const user = store.users.find((u) => u.id === t.userId && u.active);
+  return user ? { t, user } : null;
+}
+
+export function isPasswordResetTokenValid(tokenHash: string) {
+  return validResetToken(readStore(), tokenHash) !== null;
+}
+
+export function resetPasswordWithToken(tokenHash: string, password: string): "OK" | "INVALID" {
+  const store = readStore();
+  const found = validResetToken(store, tokenHash);
+  if (!found) return "INVALID";
+  const { t, user } = found;
+  user.passwordHash = bcrypt.hashSync(password, 10);
+  user.mustChangePassword = false;
+  user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+  user.updatedAt = new Date().toISOString();
+  store.resetTokens = store.resetTokens.filter((x) => x.userId !== t.userId);
+  writeStore(store);
+  return "OK";
+}
+
+export function listOrgUnits(): OrgUnitView[] {
+  return readStore().orgUnits;
+}
+
+export function orgUnitUsage(): Record<string, OrgUnitUsage> {
+  const store = readStore();
+  const usage: Record<string, OrgUnitUsage> = {};
+  const at = (name: string) => (usage[name] ??= { users: 0, tasks: 0, openTasks: 0 });
+  for (const u of store.users) if (u.active && u.orgUnit) at(u.orgUnit).users++;
+  for (const t of store.tasks) {
+    if (!t.orgUnit) continue;
+    at(t.orgUnit).tasks++;
+    if (t.status === "I_RI" || t.status === "NE_PROCES") at(t.orgUnit).openTasks++;
+  }
+  return usage;
+}
+
+function orgUnitNameTaken(store: StoreData, name: string, exceptId?: string) {
+  const q = name.toLowerCase();
+  return store.orgUnits.some((o) => o.id !== exceptId && o.name.toLowerCase() === q);
+}
+
+export function createOrgUnit(name: string): OrgUnitView {
+  const store = readStore();
+  if (orgUnitNameTaken(store, name)) throw new Error("EXISTS");
+  const unit: OrgUnitView = { id: randomUUID(), name, active: true, createdAt: new Date().toISOString() };
+  store.orgUnits.push(unit);
+  writeStore(store);
+  return unit;
+}
+
+export function renameOrgUnit(id: string, name: string): OrgUnitView | null {
+  const store = readStore();
+  const unit = store.orgUnits.find((o) => o.id === id);
+  if (!unit) return null;
+  if (unit.name === name) return unit;
+  if (orgUnitNameTaken(store, name, id)) throw new Error("EXISTS");
+  const old = unit.name;
+  unit.name = name;
+  for (const u of store.users) if (u.orgUnit === old) u.orgUnit = name;
+  for (const t of store.tasks) if (t.orgUnit === old) t.orgUnit = name;
+  writeStore(store);
+  return unit;
+}
+
+export function setOrgUnitActive(id: string, active: boolean): OrgUnitView | null {
+  const store = readStore();
+  const unit = store.orgUnits.find((o) => o.id === id);
+  if (!unit) return null;
+  unit.active = active;
+  writeStore(store);
+  return unit;
 }
 
 export function setEmailNotifications(id: string, enabled: boolean) {
@@ -305,14 +521,10 @@ export function createUser(input: {
   password: string;
   role: Role;
   orgUnit: string | null;
+  mustChangePassword?: boolean;
 }): UserView {
   const store = readStore();
-  const exists = store.users.some(
-    (u) =>
-      u.email.toLowerCase() === input.email.toLowerCase() ||
-      u.username.toLowerCase() === input.username.toLowerCase(),
-  );
-  if (exists) throw new Error("EXISTS");
+  if (loginTaken(store, input.email, input.username)) throw new Error("EXISTS");
   const now = new Date().toISOString();
   const user: LocalUser = {
     id: randomUUID(),
@@ -323,6 +535,7 @@ export function createUser(input: {
     role: input.role,
     orgUnit: input.orgUnit,
     active: true,
+    mustChangePassword: input.mustChangePassword ?? false,
     createdAt: now,
     updatedAt: now,
   };
@@ -395,7 +608,10 @@ export function getTaskDetail(id: string): TaskDetailView | null {
     documents: store.documents
       .filter((d) => d.taskId === id)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((d) => ({ ...d, uploadedBy: { name: userName(store, d.uploadedById) || "—" } })),
+      .map((d) => ({
+        ...toDocumentRecord(d),
+        uploadedBy: { name: userName(store, d.uploadedById) || "—" },
+      })),
     responses: store.responses
       .filter((r) => r.taskId === id)
       .sort((a, b) => a.seq - b.seq)
@@ -493,7 +709,7 @@ export function addComment(
 }
 
 export function addDocument(
-  doc: Omit<DocumentRecord, "id" | "createdAt">,
+  doc: NewDocumentInput,
   uploader: Actor & { id: string },
 ): DocumentRecord {
   const store = readStore();
@@ -501,6 +717,8 @@ export function addDocument(
     ...doc,
     id: randomUUID(),
     createdAt: new Date().toISOString(),
+    sentAt: null,
+    sentTo: null,
   };
   store.documents.push(full);
   pushEvents(store, doc.taskId, [documentEvent(doc.originalName)], uploader);
@@ -509,9 +727,23 @@ export function addDocument(
 }
 
 export function getDocument(taskId: string, docId: string): DocumentRecord | null {
-  return (
-    readStore().documents.find((d) => d.id === docId && d.taskId === taskId) ?? null
-  );
+  const d = readStore().documents.find((x) => x.id === docId && x.taskId === taskId);
+  return d ? toDocumentRecord(d) : null;
+}
+
+export function markDocumentSent(
+  taskId: string,
+  docId: string,
+  to: string,
+  sentAt: Date,
+): DocumentRecord | null {
+  const store = readStore();
+  const d = store.documents.find((x) => x.id === docId && x.taskId === taskId);
+  if (!d) return null;
+  d.sentAt = sentAt.toISOString();
+  d.sentTo = to;
+  writeStore(store);
+  return toDocumentRecord(d);
 }
 
 function toResponseView(r: LocalResponse, taskNumber: string): ResponseView {

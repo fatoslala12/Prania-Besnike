@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { findUserByLogin } from "@/lib/repo";
+import { findUserById, findUserByLogin } from "@/lib/repo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { Role } from "@/lib/types";
 
@@ -11,6 +11,8 @@ declare module "next-auth" {
     role: Role;
     username: string;
     orgUnit?: string | null;
+    mustChangePassword: boolean;
+    sessionVersion: number;
   }
   interface Session {
     user: {
@@ -20,6 +22,7 @@ declare module "next-auth" {
       role: Role;
       username: string;
       orgUnit?: string | null;
+      mustChangePassword: boolean;
     };
   }
 }
@@ -30,6 +33,8 @@ declare module "next-auth/jwt" {
     role: Role;
     username: string;
     orgUnit?: string | null;
+    mustChangePassword?: boolean;
+    sessionVersion?: number;
   }
 }
 
@@ -71,6 +76,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           username: user.username,
           orgUnit: user.orgUnit,
+          mustChangePassword: user.mustChangePassword,
+          sessionVersion: user.sessionVersion,
         };
       },
     }),
@@ -83,13 +90,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     maxAge: 12 * 60 * 60,
   },
   callbacks: {
+    /**
+     * Rolet, drejtoria dhe statusi lexohen nga databaza në çdo kërkesë, që ndryshimet e
+     * administratorit (ose çaktivizimi) të vlejnë menjëherë dhe jo pas 12 orësh.
+     */
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
         token.role = user.role;
         token.username = user.username;
         token.orgUnit = user.orgUnit ?? null;
+        token.mustChangePassword = user.mustChangePassword;
+        token.sessionVersion = user.sessionVersion;
+        return token;
       }
+      if (!token.id) return null;
+      const fresh = await findUserById(token.id);
+      if (!fresh || !fresh.active || fresh.sessionVersion !== (token.sessionVersion ?? 0)) {
+        return null;
+      }
+      token.name = fresh.name;
+      token.email = fresh.email;
+      token.role = fresh.role;
+      token.username = fresh.username;
+      token.orgUnit = fresh.orgUnit;
+      token.mustChangePassword = fresh.mustChangePassword;
       return token;
     },
     async session({ session, token }) {
@@ -98,6 +123,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role;
         session.user.username = token.username;
         session.user.orgUnit = token.orgUnit ?? null;
+        session.user.mustChangePassword = token.mustChangePassword ?? false;
       }
       return session;
     },

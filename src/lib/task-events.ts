@@ -166,6 +166,14 @@ export function emailEvent(docNumber: string, to: string, what: "kërkesës" | "
   };
 }
 
+export function documentEmailEvent(originalName: string, to: string): EventDraft {
+  return {
+    type: "EMAIL_SENT",
+    message: `Dokumenti «${originalName}» u dërgua me email te ${to}`,
+    meta: { filename: originalName, to },
+  };
+}
+
 /** Timestamps të njëpasnjëshme që renditja e historikut të jetë e qëndrueshme. */
 export function eventTimes(count: number, base = Date.now()) {
   return Array.from({ length: count }, (_, i) => new Date(base + i));

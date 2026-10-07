@@ -3,11 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Lock, RotateCcw } from "lucide-react";
+import { Loader2, Lock, Mail, RotateCcw, Send } from "lucide-react";
 import {
   STATUS_LABELS,
   ROLE_LABELS,
-  ORG_UNITS,
   canAssignTask,
   canRedelegate,
   shortOrgUnit,
@@ -22,6 +21,8 @@ type Doc = {
   size: number;
   createdAt: string;
   uploadedBy: { name: string };
+  sentAt?: string | null;
+  sentTo?: string | null;
 };
 
 type Comment = {
@@ -72,6 +73,8 @@ type Task = {
 type Props = {
   task: Task;
   users: UserOption[];
+  /** Drejtoritë aktive, për ri-delegim. */
+  orgUnits: string[];
   role: Role;
   canDelete: boolean;
   canRespond: boolean;
@@ -102,7 +105,7 @@ function eventLabel(type: string) {
   }
 }
 
-export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) {
+export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond }: Props) {
   const router = useRouter();
   const initialUnit = task.orgUnit || "";
   const [status, setStatus] = useState(task.status);
@@ -120,6 +123,10 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
   const [redelegateNote, setRedelegateNote] = useState("");
   const [reopening, setReopening] = useState(false);
   const [reopenNote, setReopenNote] = useState("");
+  const [mailDocId, setMailDocId] = useState<string | null>(null);
+  const [mailNote, setMailNote] = useState("");
+  const [mailBusy, setMailBusy] = useState(false);
+  const [docMsg, setDocMsg] = useState<NoticeMessage | null>(null);
   const closed = committedStatus === "PERFUNDUAR";
 
   const unitMembers = useMemo(() => {
@@ -251,18 +258,18 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
-    setMsg(null);
+    setDocMsg(null);
     const fd = new FormData();
     fd.append("file", file);
     const res = await fetch(`/api/tasks/${task.id}/documents`, {
       method: "POST",
       body: fd,
-    });
+    }).catch(() => null);
     setBusy(false);
     e.target.value = "";
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setMsg({ ok: false, text: j.error || "Ngarkimi dështoi" });
+    if (!res?.ok) {
+      const j = await res?.json().catch(() => ({}));
+      setDocMsg({ ok: false, text: j?.error || "Ngarkimi dështoi" });
       return;
     }
     const doc = await res.json();
@@ -273,10 +280,43 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
         size: doc.size,
         createdAt: doc.createdAt,
         uploadedBy: { name: "Ju" },
+        sentAt: null,
+        sentTo: null,
       },
       ...d,
     ]);
-    setMsg({ ok: true, text: "Dokumenti u ngarkua." });
+    setDocMsg({
+      ok: true,
+      text: task.citizenEmail
+        ? "Dokumenti u ngarkua. Nëse doni, dërgojani kërkuesit me «Dërgo me email»."
+        : "Dokumenti u ngarkua.",
+    });
+    await refreshHistory();
+  }
+
+  async function mailDocument(doc: Doc) {
+    if (!task.citizenEmail) return;
+    setMailBusy(true);
+    setDocMsg(null);
+    const res = await fetch(`/api/tasks/${task.id}/documents/${doc.id}/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: mailNote.trim() || null }),
+    }).catch(() => null);
+    const json = await res?.json().catch(() => ({}));
+    setMailBusy(false);
+    if (!res?.ok) {
+      setDocMsg({ ok: false, text: json?.error || "Emaili nuk u dërgua. Provoni përsëri." });
+      return;
+    }
+    setDocs((list) =>
+      list.map((d) =>
+        d.id === doc.id ? { ...d, sentAt: json.document?.sentAt, sentTo: json.document?.sentTo } : d,
+      ),
+    );
+    setMailDocId(null);
+    setMailNote("");
+    setDocMsg({ ok: true, text: `«${doc.originalName}» u dërgua te ${task.citizenEmail}.` });
     await refreshHistory();
   }
 
@@ -642,7 +682,7 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
                       onChange={(e) => setRedelegateTo(e.target.value)}
                     >
                       <option value="">— zgjidhni —</option>
-                      {ORG_UNITS.map((o) => (
+                      {orgUnits.map((o) => (
                         <option key={o} value={o} disabled={o === orgUnit}>
                           {o}
                           {o === orgUnit ? " (aktuale)" : ""}
@@ -755,33 +795,112 @@ export function TaskDetail({ task, users, role, canDelete, canRespond }: Props) 
           <p className="mt-1 text-sm text-muted">
             PDF, Word, Excel, foto — max 15MB
           </p>
-          <label className="btn-ghost mt-4 inline-flex cursor-pointer !py-2 text-sm">
-            Ngarko dokument
+          <label
+            className={`btn-ghost mt-4 inline-flex cursor-pointer !py-2 text-sm ${busy ? "pointer-events-none opacity-60" : ""}`}
+          >
+            {busy ? "Duke ngarkuar..." : "Ngarko dokument"}
             <input
               type="file"
               className="hidden"
+              disabled={busy}
               onChange={uploadFile}
               accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.webp"
             />
           </label>
+          <MessageNotice msg={docMsg} size="sm" onClose={() => setDocMsg(null)} className="mt-3" />
           <ul className="mt-4 space-y-2">
             {docs.length === 0 && (
               <li className="text-sm text-muted">Nuk ka dokumente.</li>
             )}
-            {docs.map((d) => (
-              <li key={d.id}>
-                <a
-                  href={`/api/tasks/${task.id}/documents/${d.id}`}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-brand-soft/30"
-                >
-                  <span className="truncate font-medium">{d.originalName}</span>
-                  <span className="shrink-0 text-xs text-muted">
-                    {(d.size / 1024).toFixed(0)} KB
-                  </span>
-                </a>
-              </li>
-            ))}
+            {docs.map((d) => {
+              const composing = mailDocId === d.id;
+              return (
+                <li key={d.id} className="rounded-lg border border-line text-sm">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <a
+                      href={`/api/tasks/${task.id}/documents/${d.id}`}
+                      className="min-w-0 flex-1 truncate font-medium underline-offset-2 hover:text-brand hover:underline"
+                      title={`Shkarko ${d.originalName}`}
+                    >
+                      {d.originalName}
+                    </a>
+                    <span className="shrink-0 text-xs text-muted">
+                      {(d.size / 1024).toFixed(0)} KB
+                    </span>
+                    {task.citizenEmail && !composing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMailDocId(d.id);
+                          setMailNote("");
+                          setDocMsg(null);
+                        }}
+                        disabled={mailBusy}
+                        title={`Dërgo te ${task.citizenEmail}`}
+                        className="btn-ghost !min-h-0 shrink-0 !px-2.5 !py-1 text-xs disabled:opacity-50"
+                      >
+                        <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="hidden sm:inline">Dërgo me email</span>
+                      </button>
+                    )}
+                  </div>
+                  {d.sentAt && (
+                    <p className="border-t border-line px-3 py-1.5 text-xs text-sky-800">
+                      Dërguar te {d.sentTo} · {format(new Date(d.sentAt), "dd.MM.yyyy HH:mm")}
+                    </p>
+                  )}
+                  {composing && (
+                    <div className="space-y-2 border-t border-line bg-brand-soft/20 px-3 py-3">
+                      <p className="text-xs text-muted">
+                        Dokumenti do t&apos;i dërgohet bashkëngjitur kërkuesit te{" "}
+                        <span className="font-semibold text-ink">{task.citizenEmail}</span>.
+                      </p>
+                      <label className="label !mb-1" htmlFor={`doc-note-${d.id}`}>
+                        Mesazh për kërkuesin (opsional)
+                      </label>
+                      <textarea
+                        id={`doc-note-${d.id}`}
+                        className="field resize-y"
+                        rows={3}
+                        maxLength={3000}
+                        value={mailNote}
+                        onChange={(e) => setMailNote(e.target.value)}
+                        placeholder="P.sh. Ju dërgojmë vendimin e kërkuar..."
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => mailDocument(d)}
+                          disabled={mailBusy}
+                          className="btn-primary !py-1.5 text-xs disabled:opacity-60"
+                        >
+                          {mailBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                          {d.sentAt ? "Dërgoje sërish" : "Dërgo"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMailDocId(null)}
+                          disabled={mailBusy}
+                          className="btn-ghost !py-1.5 text-xs"
+                        >
+                          Anulo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          {!task.citizenEmail && docs.length > 0 && (
+            <p className="mt-3 text-xs text-muted">
+              Kërkuesi nuk ka dhënë email, ndaj dokumentet nuk mund t&apos;i dërgohen me email.
+            </p>
+          )}
         </section>
 
         <section className="surface-card p-6">

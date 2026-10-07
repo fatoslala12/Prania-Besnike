@@ -3,13 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Notice } from "@/components/Notice";
-import { ORG_UNITS } from "@/lib/constants";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function CitizenForm() {
+export function CitizenForm({ orgUnits }: { orgUnits: string[] }) {
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">(
     "idle",
   );
@@ -132,7 +131,7 @@ export function CitizenForm() {
         </label>
         <select id="orgUnit" name="orgUnit" required className="field">
           <option value="">Zgjidhni...</option>
-          {ORG_UNITS.map((m) => (
+          {orgUnits.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
