@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { accessOf, requireSession } from "@/lib/auth-helpers";
-import { canAccessTask, canAssignTask, canRespond } from "@/lib/constants";
+import { canAccessTask, canAssignTask, canRespond, isReadOnlyRole } from "@/lib/constants";
 import { activeOrgUnitNames, getTaskDetail, listUsers } from "@/lib/repo";
 import { TaskDetail } from "@/components/TaskDetail";
 
@@ -17,6 +17,7 @@ export default async function TaskPage({ params }: Props) {
 
   const [allUsers, orgUnits] = await Promise.all([listUsers(), activeOrgUnitNames()]);
   const users = allUsers
+    .filter((u) => !isReadOnlyRole(u.role))
     .filter((u) => canAssignTask(session.user.role) || u.orgUnit === task.orgUnit)
     .map((u) => ({ id: u.id, name: u.name, role: u.role, orgUnit: u.orgUnit }));
 

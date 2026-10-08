@@ -9,6 +9,7 @@ import {
   ROLE_LABELS,
   canAssignTask,
   canRedelegate,
+  isReadOnlyRole,
   shortOrgUnit,
 } from "@/lib/constants";
 import type { ResponseView, Role, TaskStatus } from "@/lib/types";
@@ -128,6 +129,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
   const [mailBusy, setMailBusy] = useState(false);
   const [docMsg, setDocMsg] = useState<NoticeMessage | null>(null);
   const closed = committedStatus === "PERFUNDUAR";
+  const readOnly = isReadOnlyRole(role);
 
   const unitMembers = useMemo(() => {
     if (!orgUnit) return [];
@@ -520,6 +522,11 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
                     Përfunduar · e mbyllur
                   </p>
                 </div>
+              ) : readOnly ? (
+                <div>
+                  <p className="label">Statusi</p>
+                  <p className="field bg-bg font-semibold">{STATUS_LABELS[status]}</p>
+                </div>
               ) : (
                 <div>
                   <label className="label" htmlFor="status">
@@ -601,7 +608,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
                     </p>
                   </div>
                 </div>
-                {reopening ? (
+                {readOnly ? null : reopening ? (
                   <div className="mt-3 space-y-3 border-t border-emerald-200 pt-3">
                     <div>
                       <label className="label" htmlFor="reopen-note">
@@ -737,7 +744,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
             )}
           </div>
 
-          {!closed && (
+          {!closed && !readOnly && (
             <div className="mt-4 hidden flex-wrap items-center gap-3 sm:flex">
               <button
                 type="button"
@@ -757,6 +764,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
         taskId={task.id}
         number={task.number}
         citizenEmail={task.citizenEmail}
+        readOnly={readOnly}
         onChanged={refreshHistory}
       />
 
@@ -767,6 +775,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
         orgUnit={orgUnit || null}
         citizenEmail={task.citizenEmail}
         canRespond={canRespond}
+        readOnly={readOnly}
         initial={task.responses}
         onChanged={async () => {
           await refreshHistory();
@@ -775,38 +784,44 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
       />
 
       {/* Sticky save on mobile */}
-      <div className={`fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-white/95 px-3 py-2.5 backdrop-blur-md sm:hidden ${closed ? "hidden" : ""}`}>
-        <div className="mx-auto flex max-w-lg items-center gap-2">
-          <button
-            type="button"
-            onClick={saveMeta}
-            disabled={busy}
-            className="btn-primary flex-1 !py-2.5 disabled:opacity-60"
-          >
-            {busy ? "Duke ruajtur..." : "Ruaj ndryshimet"}
-          </button>
+      {!readOnly && (
+        <div className={`fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-white/95 px-3 py-2.5 backdrop-blur-md sm:hidden ${closed ? "hidden" : ""}`}>
+          <div className="mx-auto flex max-w-lg items-center gap-2">
+            <button
+              type="button"
+              onClick={saveMeta}
+              disabled={busy}
+              className="btn-primary flex-1 !py-2.5 disabled:opacity-60"
+            >
+              {busy ? "Duke ruajtur..." : "Ruaj ndryshimet"}
+            </button>
+          </div>
+          <MessageNotice msg={msg} size="sm" onClose={() => setMsg(null)} className="mx-auto mt-1.5 max-w-lg" />
         </div>
-        <MessageNotice msg={msg} size="sm" onClose={() => setMsg(null)} className="mx-auto mt-1.5 max-w-lg" />
-      </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="surface-card p-6">
           <h2 className="text-lg font-bold">Dokumente</h2>
-          <p className="mt-1 text-sm text-muted">
-            PDF, Word, Excel, foto — max 15MB
-          </p>
-          <label
-            className={`btn-ghost mt-4 inline-flex cursor-pointer !py-2 text-sm ${busy ? "pointer-events-none opacity-60" : ""}`}
-          >
-            {busy ? "Duke ngarkuar..." : "Ngarko dokument"}
-            <input
-              type="file"
-              className="hidden"
-              disabled={busy}
-              onChange={uploadFile}
-              accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.webp"
-            />
-          </label>
+          {!readOnly && (
+            <>
+              <p className="mt-1 text-sm text-muted">
+                PDF, Word, Excel, foto — max 15MB
+              </p>
+              <label
+                className={`btn-ghost mt-4 inline-flex cursor-pointer !py-2 text-sm ${busy ? "pointer-events-none opacity-60" : ""}`}
+              >
+                {busy ? "Duke ngarkuar..." : "Ngarko dokument"}
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={busy}
+                  onChange={uploadFile}
+                  accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.webp"
+                />
+              </label>
+            </>
+          )}
           <MessageNotice msg={docMsg} size="sm" onClose={() => setDocMsg(null)} className="mt-3" />
           <ul className="mt-4 space-y-2">
             {docs.length === 0 && (
@@ -827,7 +842,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
                     <span className="shrink-0 text-xs text-muted">
                       {(d.size / 1024).toFixed(0)} KB
                     </span>
-                    {task.citizenEmail && !composing && (
+                    {task.citizenEmail && !composing && !readOnly && (
                       <button
                         type="button"
                         onClick={() => {
@@ -896,7 +911,7 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
               );
             })}
           </ul>
-          {!task.citizenEmail && docs.length > 0 && (
+          {!task.citizenEmail && docs.length > 0 && !readOnly && (
             <p className="mt-3 text-xs text-muted">
               Kërkuesi nuk ka dhënë email, ndaj dokumentet nuk mund t&apos;i dërgohen me email.
             </p>
@@ -922,22 +937,24 @@ export function TaskDetail({ task, users, orgUnits, role, canDelete, canRespond 
               </li>
             ))}
           </ul>
-          <form onSubmit={addComment} className="mt-4 space-y-2">
-            <textarea
-              className="field resize-y"
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Shkruani një koment..."
-            />
-            <button
-              type="submit"
-              disabled={busy}
-              className="btn-primary !py-2 text-sm"
-            >
-              Shto koment
-            </button>
-          </form>
+          {!readOnly && (
+            <form onSubmit={addComment} className="mt-4 space-y-2">
+              <textarea
+                className="field resize-y"
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Shkruani një koment..."
+              />
+              <button
+                type="submit"
+                disabled={busy}
+                className="btn-primary !py-2 text-sm"
+              >
+                Shto koment
+              </button>
+            </form>
+          )}
         </section>
       </div>
 

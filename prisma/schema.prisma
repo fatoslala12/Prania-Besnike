@@ -11,6 +11,8 @@ enum Role {
   PERFAQESUES
   RECEPSION
   ADMIN
+  MONITORUES
+  ADMINISTRATOR
 }
 
 enum TaskStatus {

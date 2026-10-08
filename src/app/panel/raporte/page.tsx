@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { format, startOfMonth, startOfYear, subDays } from "date-fns";
 import { Download } from "lucide-react";
-import { requireRole } from "@/lib/auth-helpers";
+import { redirect } from "next/navigation";
+import { requireSession } from "@/lib/auth-helpers";
 import {
   ROLE_LABELS,
   STATUS_LABELS,
   canCreateTask,
+  canViewReports,
   shortOrgUnit,
 } from "@/lib/constants";
 import {
@@ -83,7 +85,8 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireRole(["ADMIN", "RECEPSION"]);
+  const session = await requireSession();
+  if (!canViewReports(session.user)) redirect("/panel");
   const units = (await listOrgUnits()).map((o) => o.name);
   const filter = parseReportFilter(await searchParams, units);
   const [data, users] = await Promise.all([getReportData(filterRange(filter)), listUsers()]);

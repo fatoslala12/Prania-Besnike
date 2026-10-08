@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { STATUS_LABELS, shortOrgUnit } from "@/lib/constants";
+import { STATUS_LABELS, isManagerRole, isReadOnlyRole, shortOrgUnit } from "@/lib/constants";
 import { escapeHtml, renderEmail } from "@/lib/email-template";
 import { mailEnabled, publicLink, sendMail } from "@/lib/mailer";
 import { createNotifications, listUsers } from "@/lib/repo";
@@ -24,17 +24,19 @@ type Actor = { id: string | null; name: string };
 /**
  * Marrësit sipas aksesit:
  * - Drejtoria: detyrat e njësisë së vet (ose të caktuara personalisht).
- * - Admin/Recepsion: detyra të reja, ri-delegime, ndryshime statusi.
+ * - Super Admin/Administrator/Recepsion: detyra të reja, ri-delegime, ndryshime statusi.
  * - Krijuesi i detyrës: çdo përditësim të saj.
+ * - Monitoruesi: asnjë (përndryshe do merrte njoftim për çdo veprim në sistem).
  */
-function recipients(change: TaskChange, users: UserView[], actor: Actor) {
+function recipients(change: TaskChange, allUsers: UserView[], actor: Actor) {
   const { task } = change;
+  const users = allUsers.filter((u) => !isReadOnlyRole(u.role));
   const unit = users.filter(
     (u) =>
       (u.role === "PERFAQESUES" && !!task.orgUnit && u.orgUnit === task.orgUnit) ||
       u.id === task.assigneeId,
   );
-  const managers = users.filter((u) => u.role === "ADMIN" || u.role === "RECEPSION");
+  const managers = users.filter((u) => isManagerRole(u.role));
   const creator = users.filter((u) => u.id === task.creatorId);
 
   const groups: UserView[][] = {

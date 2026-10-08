@@ -9,7 +9,17 @@ import type { Role, UserView } from "@/lib/types";
 
 type UnitOption = { name: string; active: boolean };
 
-const ROLES: Role[] = ["PERFAQESUES", "RECEPSION", "ADMIN"];
+const ROLES: Role[] = ["PERFAQESUES", "RECEPSION", "ADMINISTRATOR", "ADMIN", "MONITORUES"];
+
+const ROLE_HINTS: Record<Role, string> = {
+  PERFAQESUES: "Trajton kërkesat e deleguara te drejtoria e vet.",
+  RECEPSION: "Regjistron dhe delegon kërkesat; sheh gjithçka dhe raportet.",
+  ADMINISTRATOR:
+    "Si Recepsioni: regjistron, delegon, sheh gjithçka dhe raportet. Nuk menaxhon përdoruesit dhe drejtoritë.",
+  ADMIN: "Gjithçka, përfshirë përdoruesit, drejtoritë dhe fshirjen e kërkesave.",
+  MONITORUES:
+    "Vetëm shikim, pa ndryshuar asgjë. Pa drejtori: gjithë sistemi + raportet. Me drejtori: vetëm kërkesat e saj.",
+};
 const smallBtn = "btn-ghost !min-h-0 !px-2.5 !py-1.5 text-xs disabled:opacity-50";
 
 async function send(url: string, method: "POST" | "PATCH", body: object) {
@@ -49,7 +59,7 @@ function UnitSelect({
       defaultValue={value === undefined ? defaultValue : undefined}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
     >
-      <option value="">— pa njësi (admin/recepsion) —</option>
+      <option value="">— pa drejtori —</option>
       {units
         .filter((u) => u.active || u.name === current)
         .map((u) => (
@@ -65,6 +75,7 @@ function UnitSelect({
 function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: (u: UserView) => void }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<Role>("PERFAQESUES");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -88,6 +99,7 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
     }
     onCreated(r.json as UserView);
     form.reset();
+    setRole("PERFAQESUES");
   }
 
   return (
@@ -143,13 +155,20 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
         <label className="label" htmlFor="role">
           Roli
         </label>
-        <select id="role" name="role" className="field" defaultValue="PERFAQESUES">
+        <select
+          id="role"
+          name="role"
+          className="field"
+          value={role}
+          onChange={(e) => setRole(e.target.value as Role)}
+        >
           {ROLES.map((r) => (
             <option key={r} value={r}>
               {ROLE_LABELS[r]}
             </option>
           ))}
         </select>
+        <p className="mt-1.5 text-xs text-muted">{ROLE_HINTS[role]}</p>
       </div>
       <div>
         <label className="label" htmlFor="orgUnit">
@@ -157,7 +176,9 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
         </label>
         <UnitSelect id="orgUnit" name="orgUnit" units={units} defaultValue="" />
         <p className="mt-1.5 text-xs text-muted">
-          Përdoruesi sheh dhe trajton detyrat e deleguara te kjo njësi.
+          {role === "MONITORUES"
+            ? "Bosh = monitoron gjithë sistemin. Me drejtori = sheh vetëm kërkesat e saj."
+            : "Përdoruesi sheh dhe trajton detyrat e deleguara te kjo njësi."}
         </p>
       </div>
       {error && <Notice tone="error">{error}</Notice>}
@@ -423,8 +444,12 @@ function UserRow({
           <p className="break-all text-sm text-muted">
             {user.username} · {user.email}
           </p>
-          {user.orgUnit && (
+          {user.orgUnit ? (
             <p className="mt-1 text-xs font-medium text-brand">{shortOrgUnit(user.orgUnit)}</p>
+          ) : (
+            user.role === "MONITORUES" && (
+              <p className="mt-1 text-xs font-medium text-sky-800">Monitoron gjithë sistemin</p>
+            )
           )}
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {!user.active && (

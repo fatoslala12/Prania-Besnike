@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { canManageUsers } from "@/lib/constants";
+import { canManageUsers, isManagerRole } from "@/lib/constants";
 import { createUser, isActiveOrgUnit, listUsers } from "@/lib/repo";
 
 export async function GET() {
@@ -10,10 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Pa autorizim" }, { status: 401 });
   }
 
-  if (
-    session.user.role !== "ADMIN" &&
-    session.user.role !== "RECEPSION"
-  ) {
+  if (!isManagerRole(session.user.role)) {
     return NextResponse.json({ error: "Nuk keni të drejtë" }, { status: 403 });
   }
 
@@ -30,7 +27,7 @@ const createSchema = z.object({
     .max(50)
     .regex(/^[a-zA-Z0-9._-]+$/),
   password: z.string().min(10).max(200),
-  role: z.enum(["PERFAQESUES", "RECEPSION", "ADMIN"]),
+  role: z.enum(["PERFAQESUES", "RECEPSION", "ADMINISTRATOR", "ADMIN", "MONITORUES"]),
   orgUnit: z.string().max(200).nullable().optional(),
   mustChangePassword: z.boolean().optional(),
 });

@@ -5,6 +5,7 @@ import { accessOf, actorOf } from "@/lib/auth-helpers";
 import { canAccessTask } from "@/lib/constants";
 import { notifyTaskChange } from "@/lib/notify";
 import { addComment, getTask } from "@/lib/repo";
+import { readOnlyError } from "@/lib/task-route";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -13,6 +14,8 @@ export async function POST(req: Request, { params }: Params) {
   if (!session?.user) {
     return NextResponse.json({ error: "Pa autorizim" }, { status: 401 });
   }
+  const denied = readOnlyError(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const parsed = z

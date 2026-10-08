@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { accessOf, actorOf } from "@/lib/auth-helpers";
 import { canAccessTask, canAssignTask, canRedelegate } from "@/lib/constants";
 import { notifyTaskChange } from "@/lib/notify";
+import { readOnlyError } from "@/lib/task-route";
 import {
   addComment,
   deleteTask,
@@ -46,6 +47,8 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!session?.user) {
     return NextResponse.json({ error: "Pa autorizim" }, { status: 401 });
   }
+  const denied = readOnlyError(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const parsed = updateSchema.safeParse(await req.json().catch(() => null));

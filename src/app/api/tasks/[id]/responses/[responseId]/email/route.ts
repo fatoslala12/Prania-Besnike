@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string; responseId: string }> };
 
 export async function POST(_req: Request, { params }: Params) {
   const { id, responseId } = await params;
-  const loaded = await loadAccessibleTask(id);
+  const loaded = await loadAccessibleTask(id, { write: true });
   if (loaded.error) return loaded.error;
   const { session, task } = loaded;
 

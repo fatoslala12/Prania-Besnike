@@ -39,7 +39,7 @@ export default async function PanelPage({
   const orgFilter = sp.orgUnit && allUnits.includes(sp.orgUnit) ? sp.orgUnit : undefined;
 
   const tasks = await listTasks({
-    access: canSeeAllTasks(session.user.role) ? undefined : accessOf(session),
+    access: canSeeAllTasks(session.user) ? undefined : accessOf(session),
     status: statusFilter,
     orgUnit: orgFilter,
     q: q || undefined,
@@ -48,7 +48,7 @@ export default async function PanelPage({
   const unassigned = tasks.filter((t) => !t.orgUnit && !t.assigneeId).length;
 
   const orgOptions =
-    !canSeeAllTasks(session.user.role) && session.user.orgUnit
+    !canSeeAllTasks(session.user) && session.user.orgUnit
       ? [session.user.orgUnit]
       : allUnits;
 
@@ -80,7 +80,7 @@ export default async function PanelPage({
             Detyrat
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {canSeeAllTasks(session.user.role)
+            {canSeeAllTasks(session.user)
               ? `${tasks.length} detyra · ${unassigned} pa delegim`
               : `${tasks.length} detyra për njësinë / ju`}
           </p>

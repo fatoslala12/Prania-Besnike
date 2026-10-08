@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   const tasks = await listTasks(
-    canSeeAllTasks(session.user.role) ? {} : { access: accessOf(session) },
+    canSeeAllTasks(session.user) ? {} : { access: accessOf(session) },
   );
   return NextResponse.json(tasks);
 }

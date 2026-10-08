@@ -15,7 +15,7 @@ const bodySchema = z.object({ note: z.string().trim().max(3000).nullish() });
 
 export async function POST(req: Request, { params }: Params) {
   const { id, docId } = await params;
-  const loaded = await loadAccessibleTask(id);
+  const loaded = await loadAccessibleTask(id, { write: true });
   if (loaded.error) return loaded.error;
   const { session, task } = loaded;
 

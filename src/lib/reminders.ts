@@ -1,4 +1,4 @@
-import { shortOrgUnit } from "@/lib/constants";
+import { isManagerRole, isReadOnlyRole, shortOrgUnit } from "@/lib/constants";
 import { mailUsers, notificationEmail } from "@/lib/notify";
 import { OVERDUE_DAYS } from "@/lib/reports";
 import { createNotifications, hasNotificationSince, listTasks, listUsers } from "@/lib/repo";
@@ -32,7 +32,8 @@ function tiranaClock(now: Date) {
 }
 
 function tasksFor(user: UserView, overdue: TaskListItem[]) {
-  if (user.role === "ADMIN" || user.role === "RECEPSION") return overdue;
+  if (isReadOnlyRole(user.role)) return [];
+  if (isManagerRole(user.role)) return overdue;
   return overdue.filter(
     (t) => (!!t.orgUnit && t.orgUnit === user.orgUnit) || t.assigneeId === user.id,
   );

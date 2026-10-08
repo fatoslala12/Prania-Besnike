@@ -5,7 +5,9 @@ export type { Role };
 export const ROLE_LABELS: Record<Role, string> = {
   PERFAQESUES: "Përfaqësues Drejtorie",
   RECEPSION: "Recepsion",
-  ADMIN: "Administrator",
+  ADMINISTRATOR: "Administrator",
+  ADMIN: "Super Administrator",
+  MONITORUES: "Monitorues",
 };
 
 export const STATUS_LABELS = {
@@ -39,36 +41,54 @@ export function normalizeOrgUnitName(name: string) {
   return name.trim().replace(/\s+/g, " ");
 }
 
+/**
+ * Rolet që regjistrojnë, delegojnë dhe shohin gjithë kërkesat. Administratori është
+ * si Recepsioni; vetëm Super Administratori (ADMIN) menaxhon përdoruesit/drejtoritë.
+ */
+export function isManagerRole(role: Role) {
+  return role === "ADMIN" || role === "ADMINISTRATOR" || role === "RECEPSION";
+}
+
 export function canCreateTask(role: Role) {
-  return role === "ADMIN" || role === "RECEPSION";
+  return isManagerRole(role);
 }
 
 export function canAssignTask(role: Role) {
-  return role === "ADMIN" || role === "RECEPSION";
+  return isManagerRole(role);
 }
 
 /** Çdo rol me akses te detyra mund ta ri-delegojë (Drejtoria vetëm detyrat e veta). */
 export function canRedelegate(role: Role) {
-  return role === "ADMIN" || role === "RECEPSION" || role === "PERFAQESUES";
+  return isManagerRole(role) || role === "PERFAQESUES";
 }
 
-export function canViewReports(role: Role) {
-  return role === "ADMIN" || role === "RECEPSION";
+/**
+ * Monitoruesi sheh, por nuk ndryshon asgjë. Pa drejtori monitoron gjithë sistemin;
+ * me drejtori vetëm kërkesat e asaj drejtorie.
+ */
+export function isReadOnlyRole(role: Role) {
+  return role === "MONITORUES";
+}
+
+type ScopedUser = { role: Role; orgUnit?: string | null };
+
+export function canSeeAllTasks(user: ScopedUser) {
+  return isManagerRole(user.role) || (user.role === "MONITORUES" && !user.orgUnit);
+}
+
+export function canViewReports(user: ScopedUser) {
+  return canSeeAllTasks(user);
 }
 
 export function canManageUsers(role: Role) {
   return role === "ADMIN";
 }
 
-export function canSeeAllTasks(role: Role) {
-  return role === "ADMIN" || role === "RECEPSION";
-}
-
 export function canAccessTask(
   user: { id: string; role: Role; orgUnit?: string | null },
   task: { assigneeId: string | null; orgUnit: string | null },
 ) {
-  if (canSeeAllTasks(user.role)) return true;
+  if (canSeeAllTasks(user)) return true;
   if (task.assigneeId && task.assigneeId === user.id) return true;
   return !!user.orgUnit && task.orgUnit === user.orgUnit;
 }
@@ -78,7 +98,7 @@ export function canRespond(
   user: { id: string; role: Role; orgUnit?: string | null },
   task: { assigneeId: string | null; orgUnit: string | null },
 ) {
-  return !!task.orgUnit && canAccessTask(user, task);
+  return !isReadOnlyRole(user.role) && !!task.orgUnit && canAccessTask(user, task);
 }
 
 export function shortOrgUnit(name: string) {

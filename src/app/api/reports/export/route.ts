@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Pa autorizim" }, { status: 401 });
   }
-  if (!canViewReports(session.user.role)) {
+  if (!canViewReports(session.user)) {
     return NextResponse.json({ error: "Nuk keni të drejtë" }, { status: 403 });
   }
 

@@ -9,7 +9,7 @@ import { applyResponseStatus, loadAccessibleTask } from "@/lib/task-route";
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Params) {
-  const loaded = await loadAccessibleTask((await params).id);
+  const loaded = await loadAccessibleTask((await params).id, { write: true });
   if (loaded.error) return loaded.error;
   const { session, task } = loaded;
 

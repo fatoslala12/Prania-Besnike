@@ -26,6 +26,7 @@ type Props = {
   user: {
     name: string;
     role: Role;
+    orgUnit: string | null;
   };
 };
 
@@ -60,7 +61,7 @@ export function PanelNav({ user }: Props) {
       label: "Raporte",
       short: "Raporte",
       icon: BarChart3,
-      show: canViewReports(user.role),
+      show: canViewReports(user),
     },
     {
       href: "/panel/perdoruesit",

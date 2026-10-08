@@ -1,4 +1,4 @@
-export type Role = "PERFAQESUES" | "RECEPSION" | "ADMIN";
+export type Role = "PERFAQESUES" | "RECEPSION" | "ADMINISTRATOR" | "ADMIN" | "MONITORUES";
 export type TaskStatus = "I_RI" | "NE_PROCES" | "PERFUNDUAR" | "BLOKUAR";
 export type EventType =
   | "CREATED"

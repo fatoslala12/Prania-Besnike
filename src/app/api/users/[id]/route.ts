@@ -23,7 +23,7 @@ const editSchema = z.object({
     .min(3)
     .max(50)
     .regex(/^[a-zA-Z0-9._-]+$/),
-  role: z.enum(["PERFAQESUES", "RECEPSION", "ADMIN"]),
+  role: z.enum(["PERFAQESUES", "RECEPSION", "ADMINISTRATOR", "ADMIN", "MONITORUES"]),
   orgUnit: z.string().max(200).nullable(),
 });
 
@@ -45,7 +45,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const { active } = toggle.data;
     if (self && !active) return bad("Nuk mund ta çaktivizoni llogarinë tuaj.");
     if (!active && target.role === "ADMIN" && (await countActiveAdmins(id)) === 0) {
-      return bad("Duhet të mbetet të paktën një administrator aktiv.");
+      return bad("Duhet të mbetet të paktën një Super Administrator aktiv.");
     }
     return NextResponse.json(await setUserActive(id, active));
   }
@@ -56,10 +56,10 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   const data = edit.data;
   if (self && data.role !== target.role) {
-    return bad("Nuk mund ta ndryshoni rolin tuaj. Kërkojini një administratori tjetër.");
+    return bad("Nuk mund ta ndryshoni rolin tuaj. Kërkojini një Super Administratori tjetër.");
   }
   if (target.role === "ADMIN" && data.role !== "ADMIN" && (await countActiveAdmins(id)) === 0) {
-    return bad("Duhet të mbetet të paktën një administrator aktiv.");
+    return bad("Duhet të mbetet të paktën një Super Administrator aktiv.");
   }
   const orgUnit = data.orgUnit || null;
   if (orgUnit && orgUnit !== target.orgUnit && !(await isActiveOrgUnit(orgUnit))) {

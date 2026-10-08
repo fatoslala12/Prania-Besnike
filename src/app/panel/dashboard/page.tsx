@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   const session = await requireSession();
 
   const stats = await getDashboardStats(
-    canSeeAllTasks(session.user.role) ? undefined : accessOf(session),
+    canSeeAllTasks(session.user) ? undefined : accessOf(session),
   );
 
   const maxDay = Math.max(1, ...stats.last7.map((d) => d.count));
@@ -71,7 +71,7 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             Statistika të gjalla nga detyrat
-            {canSeeAllTasks(session.user.role) ? " e sistemit" : " tuaja"}.
+            {canSeeAllTasks(session.user) ? " e sistemit" : " tuaja"}.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

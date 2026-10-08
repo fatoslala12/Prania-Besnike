@@ -45,12 +45,14 @@ function PdfActions({
   emailUrl,
   emailTo,
   confirmNote,
+  canEmail = true,
   onSent,
 }: {
   pdfUrl: string;
   emailUrl: string;
   emailTo: string | null;
   confirmNote?: string;
+  canEmail?: boolean;
   onSent?: (json: { response?: ResponseView }) => void;
 }) {
   const [busy, setBusy] = useState<"print" | "mail" | null>(null);
@@ -99,23 +101,25 @@ function PdfActions({
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           Shkarko PDF
         </a>
-        <button
-          type="button"
-          onClick={mail}
-          disabled={busy !== null || !emailTo}
-          title={emailTo ? `Dërgo te ${emailTo}` : "Kërkuesi nuk ka dhënë email"}
-          className={smallBtn}
-        >
-          {busy === "mail" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-          ) : (
-            <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-          )}
-          Dërgo me email
-        </button>
+        {canEmail && (
+          <button
+            type="button"
+            onClick={mail}
+            disabled={busy !== null || !emailTo}
+            title={emailTo ? `Dërgo te ${emailTo}` : "Kërkuesi nuk ka dhënë email"}
+            className={smallBtn}
+          >
+            {busy === "mail" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            Dërgo me email
+          </button>
+        )}
       </div>
       <MessageNotice msg={note} size="sm" onClose={() => setNote(null)} className="mt-2" />
-      {!emailTo && (
+      {canEmail && !emailTo && (
         <p className="mt-2 text-xs text-muted">Kërkuesi nuk ka dhënë email — mund ta printoni ose shkarkoni.</p>
       )}
     </div>
@@ -126,11 +130,13 @@ export function RequestSheet({
   taskId,
   number,
   citizenEmail,
+  readOnly = false,
   onChanged,
 }: {
   taskId: string;
   number: string;
   citizenEmail: string | null;
+  readOnly?: boolean;
   onChanged?: () => void;
 }) {
   return (
@@ -150,6 +156,7 @@ export function RequestSheet({
         pdfUrl={`/api/tasks/${taskId}/pdf`}
         emailUrl={`/api/tasks/${taskId}/pdf/email`}
         emailTo={citizenEmail}
+        canEmail={!readOnly}
         onSent={() => onChanged?.()}
       />
     </section>
@@ -272,6 +279,7 @@ function ResponseItem({
   status,
   citizenEmail,
   canEdit,
+  canEmail,
   onSaved,
   onSent,
 }: {
@@ -280,6 +288,7 @@ function ResponseItem({
   status: TaskStatus;
   citizenEmail: string | null;
   canEdit: boolean;
+  canEmail: boolean;
   onSaved: (result: SaveResult, message: string) => void;
   onSent: (response: ResponseView) => void;
 }) {
@@ -373,6 +382,7 @@ function ResponseItem({
               pdfUrl={`/api/tasks/${taskId}/responses/${response.id}/pdf`}
               emailUrl={`/api/tasks/${taskId}/responses/${response.id}/email`}
               emailTo={citizenEmail}
+              canEmail={canEmail}
               confirmNote={
                 response.sentAt ? undefined : "Pas dërgimit, përgjigjja kyçet dhe nuk mund të ndryshohet më."
               }
@@ -398,6 +408,7 @@ export function ResponsesSection({
   orgUnit,
   citizenEmail,
   canRespond,
+  readOnly = false,
   initial,
   onChanged,
 }: {
@@ -407,6 +418,7 @@ export function ResponsesSection({
   orgUnit: string | null;
   citizenEmail: string | null;
   canRespond: boolean;
+  readOnly?: boolean;
   initial: ResponseView[];
   onChanged?: () => void;
 }) {
@@ -458,6 +470,7 @@ export function ResponsesSection({
             status={status}
             citizenEmail={citizenEmail}
             canEdit={canRespond && (!closed || r.isFinal)}
+            canEmail={!readOnly}
             onSaved={(result, text) => {
               replace(result.response);
               setMsg({ ok: true, text });
@@ -484,9 +497,11 @@ export function ResponsesSection({
                 ? `Kërkesa u mbyll me përgjigjen përfundimtare Nr. ${finalResponse.number}`
                 : "Kërkesa është e mbyllur (Përfunduar)"}
             </p>
-            <p className="mt-0.5 text-emerald-900/75">
-              Nuk shtohen më zgjidhje të tjera. Nëse duhet një përgjigje e re, klikoni «Rihap çështjen» më lart.
-            </p>
+            {!readOnly && (
+              <p className="mt-0.5 text-emerald-900/75">
+                Nuk shtohen më zgjidhje të tjera. Nëse duhet një përgjigje e re, klikoni «Rihap çështjen» më lart.
+              </p>
+            )}
           </div>
         </div>
       ) : canRespond && orgUnit ? (
