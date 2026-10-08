@@ -60,7 +60,22 @@ model User {
   notifications  Notification[]
   responses      TaskResponse[]
   passwordResets PasswordResetToken[]
+  extraRoles     UserRole[]
 
+  @@index([orgUnit])
+}
+
+/// Role shtesë: përdoruesi zgjedh në hyrje me cilin rol punon (User.role mbetet roli kryesor).
+model UserRole {
+  id        String   @id @default(cuid())
+  role      Role
+  orgUnit   String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([orgUnit])
 }
 

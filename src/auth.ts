@@ -5,6 +5,7 @@ import { z } from "zod";
 import { findUserById, findUserByLogin } from "@/lib/repo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { Role } from "@/lib/types";
+import { PRIMARY_ROLE_KEY, findRoleOption, roleOptions } from "@/lib/user-roles";
 
 declare module "next-auth" {
   interface User {
@@ -13,16 +14,22 @@ declare module "next-auth" {
     orgUnit?: string | null;
     mustChangePassword: boolean;
     sessionVersion: number;
+    roleCount: number;
   }
   interface Session {
     user: {
       id: string;
       email: string;
       name: string;
+      /** Roli aktiv (ai që përdoruesi zgjodhi), jo domosdoshmërisht roli kryesor. */
       role: Role;
       username: string;
       orgUnit?: string | null;
       mustChangePassword: boolean;
+      roleKey: string | null;
+      roleCount: number;
+      /** Ka disa role dhe ende s'ka zgjedhur me cilin punon. */
+      needsRole: boolean;
     };
   }
 }
@@ -35,10 +42,12 @@ declare module "next-auth/jwt" {
     orgUnit?: string | null;
     mustChangePassword?: boolean;
     sessionVersion?: number;
+    activeRole?: string | null;
+    roleCount?: number;
   }
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   providers: [
     Credentials({
       name: "credentials",
@@ -78,6 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           orgUnit: user.orgUnit,
           mustChangePassword: user.mustChangePassword,
           sessionVersion: user.sessionVersion,
+          roleCount: roleOptions(user).length,
         };
       },
     }),
@@ -94,7 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * Rolet, drejtoria dhe statusi lexohen nga databaza në çdo kërkesë, që ndryshimet e
      * administratorit (ose çaktivizimi) të vlejnë menjëherë dhe jo pas 12 orësh.
      */
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id!;
         token.role = user.role;
@@ -102,6 +112,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.orgUnit = user.orgUnit ?? null;
         token.mustChangePassword = user.mustChangePassword;
         token.sessionVersion = user.sessionVersion;
+        token.roleCount = user.roleCount;
+        token.activeRole = user.roleCount > 1 ? null : PRIMARY_ROLE_KEY;
         return token;
       }
       if (!token.id) return null;
@@ -109,12 +121,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!fresh || !fresh.active || fresh.sessionVersion !== (token.sessionVersion ?? 0)) {
         return null;
       }
+      const requested = (session as { activeRole?: unknown } | undefined)?.activeRole;
+      if (trigger === "update" && typeof requested === "string" && findRoleOption(fresh, requested)) {
+        token.activeRole = requested;
+      }
+      // Roli aktiv rivlerësohet çdo herë: nëse admini e heq, përdoruesi rizgjedh.
+      const options = roleOptions(fresh);
+      let active = findRoleOption(fresh, token.activeRole);
+      if (!active) {
+        active = options.length === 1 ? options[0] : null;
+        token.activeRole = active ? PRIMARY_ROLE_KEY : null;
+      }
+      const effective = active ?? options[0];
       token.name = fresh.name;
       token.email = fresh.email;
-      token.role = fresh.role;
+      token.role = effective.role;
       token.username = fresh.username;
-      token.orgUnit = fresh.orgUnit;
+      token.orgUnit = effective.orgUnit;
       token.mustChangePassword = fresh.mustChangePassword;
+      token.roleCount = options.length;
       return token;
     },
     async session({ session, token }) {
@@ -124,6 +149,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.username = token.username;
         session.user.orgUnit = token.orgUnit ?? null;
         session.user.mustChangePassword = token.mustChangePassword ?? false;
+        session.user.roleKey = token.activeRole ?? null;
+        session.user.roleCount = token.roleCount ?? 1;
+        session.user.needsRole = !token.activeRole;
       }
       return session;
     },

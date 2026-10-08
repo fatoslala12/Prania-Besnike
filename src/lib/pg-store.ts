@@ -20,6 +20,7 @@ import type {
   DashboardStats,
   DocumentRecord,
   EventMeta,
+  ExtraRole,
   HistoryView,
   NewDocumentInput,
   NewNotification,
@@ -139,7 +140,13 @@ async function userName(id: string | null) {
   return u?.name ?? null;
 }
 
-type UserRow = Prisma.UserGetPayload<object>;
+const withRoles = { extraRoles: { orderBy: { createdAt: "asc" } } } satisfies Prisma.UserInclude;
+
+type UserRow = Prisma.UserGetPayload<{ include: typeof withRoles }>;
+
+function toExtraRoles(u: UserRow): ExtraRole[] {
+  return u.extraRoles.map((r) => ({ id: r.id, role: r.role, orgUnit: r.orgUnit }));
+}
 
 function toAuthUser(u: UserRow): AuthUser {
   return {
@@ -150,6 +157,7 @@ function toAuthUser(u: UserRow): AuthUser {
     passwordHash: u.passwordHash,
     role: u.role,
     orgUnit: u.orgUnit,
+    extraRoles: toExtraRoles(u),
     active: u.active,
     mustChangePassword: u.mustChangePassword,
     sessionVersion: u.sessionVersion,
@@ -169,13 +177,14 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
         { username: { equals: login.trim(), mode: "insensitive" } },
       ],
     },
+    include: withRoles,
   });
   return u ? toAuthUser(u) : null;
 }
 
 /** Edhe përdoruesit joaktivë — që seanca e tyre të mbyllet. */
 export async function findUserById(id: string): Promise<AuthUser | null> {
-  const u = await prisma.user.findUnique({ where: { id } });
+  const u = await prisma.user.findUnique({ where: { id }, include: withRoles });
   return u ? toAuthUser(u) : null;
 }
 
@@ -187,6 +196,7 @@ function toUserView(u: UserRow): UserView {
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    extraRoles: toExtraRoles(u),
     active: u.active,
     mustChangePassword: u.mustChangePassword,
     emailNotifications: u.emailNotifications,
@@ -198,23 +208,44 @@ export async function listUsers(): Promise<UserView[]> {
   const users = await prisma.user.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
+    include: withRoles,
   });
   return users.map(toUserView);
 }
 
 export async function listAllUsers(): Promise<UserView[]> {
-  const users = await prisma.user.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] });
+  const users = await prisma.user.findMany({
+    orderBy: [{ active: "desc" }, { name: "asc" }],
+    include: withRoles,
+  });
   return users.map(toUserView);
 }
 
 export async function getUser(id: string): Promise<UserView | null> {
-  const u = await prisma.user.findFirst({ where: { id, active: true } });
+  const u = await prisma.user.findFirst({ where: { id, active: true }, include: withRoles });
   return u ? toUserView(u) : null;
 }
 
 export async function getAnyUser(id: string): Promise<UserView | null> {
-  const u = await prisma.user.findUnique({ where: { id } });
+  const u = await prisma.user.findUnique({ where: { id }, include: withRoles });
   return u ? toUserView(u) : null;
+}
+
+export async function addUserRole(
+  userId: string,
+  role: Role,
+  orgUnit: string | null,
+): Promise<UserView | null> {
+  const found = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!found) return null;
+  await prisma.userRole.create({ data: { userId, role, orgUnit } });
+  return getAnyUser(userId);
+}
+
+export async function removeUserRole(userId: string, roleId: string): Promise<UserView | null> {
+  const { count } = await prisma.userRole.deleteMany({ where: { id: roleId, userId } });
+  if (count === 0) return null;
+  return getAnyUser(userId);
 }
 
 export async function changePassword(
@@ -256,6 +287,7 @@ export async function createUser(input: {
         orgUnit: input.orgUnit,
         mustChangePassword: input.mustChangePassword ?? false,
       },
+      include: withRoles,
     });
     return toUserView(u);
   } catch (e) {
@@ -266,7 +298,7 @@ export async function createUser(input: {
 
 export async function updateUser(id: string, patch: UserPatch): Promise<UserView | null> {
   try {
-    const u = await prisma.user.update({ where: { id }, data: patch });
+    const u = await prisma.user.update({ where: { id }, data: patch, include: withRoles });
     return toUserView(u);
   } catch (e) {
     if (isUniqueViolation(e)) throw new Error("EXISTS");
@@ -281,6 +313,7 @@ export async function setUserActive(id: string, active: boolean): Promise<UserVi
   const u = await prisma.user.update({
     where: { id },
     data: { active, ...(active ? {} : { sessionVersion: { increment: 1 } }) },
+    include: withRoles,
   });
   return toUserView(u);
 }
@@ -304,7 +337,11 @@ export async function setTemporaryPassword(id: string, password: string): Promis
 
 export async function countActiveAdmins(excludeId?: string) {
   return prisma.user.count({
-    where: { role: "ADMIN", active: true, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    where: {
+      active: true,
+      OR: [{ role: "ADMIN" }, { extraRoles: { some: { role: "ADMIN" } } }],
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
   });
 }
 
@@ -356,8 +393,12 @@ export async function listOrgUnits(): Promise<OrgUnitView[]> {
 }
 
 export async function orgUnitUsage(): Promise<Record<string, OrgUnitUsage>> {
-  const [users, tasks, open] = await Promise.all([
+  const [users, extra, tasks, open] = await Promise.all([
     prisma.user.groupBy({ by: ["orgUnit"], where: { active: true }, _count: { _all: true } }),
+    prisma.userRole.findMany({
+      where: { orgUnit: { not: null }, user: { active: true } },
+      select: { orgUnit: true, userId: true, user: { select: { orgUnit: true } } },
+    }),
     prisma.task.groupBy({ by: ["orgUnit"], _count: { _all: true } }),
     prisma.task.groupBy({
       by: ["orgUnit"],
@@ -368,6 +409,13 @@ export async function orgUnitUsage(): Promise<Record<string, OrgUnitUsage>> {
   const usage: Record<string, OrgUnitUsage> = {};
   const at = (name: string) => (usage[name] ??= { users: 0, tasks: 0, openTasks: 0 });
   for (const r of users) if (r.orgUnit) at(r.orgUnit).users = r._count._all;
+  const counted = new Set<string>();
+  for (const r of extra) {
+    const key = `${r.userId}|${r.orgUnit}`;
+    if (!r.orgUnit || r.user.orgUnit === r.orgUnit || counted.has(key)) continue;
+    counted.add(key);
+    at(r.orgUnit).users++;
+  }
   for (const r of tasks) if (r.orgUnit) at(r.orgUnit).tasks = r._count._all;
   for (const r of open) if (r.orgUnit) at(r.orgUnit).openTasks = r._count._all;
   return usage;
@@ -404,6 +452,7 @@ export async function renameOrgUnit(id: string, name: string): Promise<OrgUnitVi
     const [updated] = await prisma.$transaction([
       prisma.orgUnit.update({ where: { id }, data: { name } }),
       prisma.user.updateMany({ where: { orgUnit: current.name }, data: { orgUnit: name } }),
+      prisma.userRole.updateMany({ where: { orgUnit: current.name }, data: { orgUnit: name } }),
       prisma.task.updateMany({ where: { orgUnit: current.name }, data: { orgUnit: name } }),
     ]);
     return toOrgUnitView(updated);

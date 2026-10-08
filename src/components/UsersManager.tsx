@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, KeyRound, Loader2, Mail, Pencil, UserCheck, UserX } from "lucide-react";
+import { Check, Copy, KeyRound, Loader2, Mail, Pencil, Plus, Search, UserCheck, UserX, X } from "lucide-react";
 import { MessageNotice, Notice, type NoticeMessage } from "@/components/Notice";
 import { ROLE_LABELS, shortOrgUnit } from "@/lib/constants";
-import type { Role, UserView } from "@/lib/types";
+import type { ExtraRole, Role, UserView } from "@/lib/types";
+import { roleOptions } from "@/lib/user-roles";
 
 type UnitOption = { name: string; active: boolean };
 
@@ -20,6 +21,11 @@ const ROLE_HINTS: Record<Role, string> = {
   MONITORUES:
     "Vetëm shikim, pa ndryshuar asgjë. Pa drejtori: gjithë sistemi + raportet. Me drejtori: vetëm kërkesat e saj.",
 };
+const NO_UNIT = "__none__";
+
+/** Kërkim pa dallim shkronjash/diakritikësh: «Ë» → «e», «ç» → «c». */
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 const smallBtn = "btn-ghost !min-h-0 !px-2.5 !py-1.5 text-xs disabled:opacity-50";
 
 async function send(url: string, method: "POST" | "PATCH", body: object) {
@@ -399,6 +405,83 @@ function PasswordPanel({ user, onReset }: { user: UserView; onReset: (u: UserVie
   );
 }
 
+function AddRolePanel({
+  user,
+  units,
+  onAdded,
+  onCancel,
+}: {
+  user: UserView;
+  units: UnitOption[];
+  onAdded: (u: UserView) => void;
+  onCancel: () => void;
+}) {
+  const [role, setRole] = useState<Role>("PERFAQESUES");
+  const [orgUnit, setOrgUnit] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const p = `addrole-${user.id}`;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    const r = await send(`/api/users/${user.id}/roles`, "POST", { role, orgUnit: orgUnit || null });
+    setSaving(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    onAdded(r.json as UserView);
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-3 grid gap-3 rounded-xl border border-line bg-bg/60 p-3 sm:grid-cols-2 sm:p-4">
+      <p className="text-sm text-muted sm:col-span-2">
+        Shtoni një rol tjetër për {user.name}. Në hyrje do të zgjedhë me cilin rol punon dhe mund ta ndërrojë
+        kurdo.
+      </p>
+      <div>
+        <label className="label" htmlFor={`${p}-role`}>
+          Roli i ri
+        </label>
+        <select
+          id={`${p}-role`}
+          className="field"
+          value={role}
+          onChange={(e) => setRole(e.target.value as Role)}
+        >
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-muted">{ROLE_HINTS[role]}</p>
+      </div>
+      <div>
+        <label className="label" htmlFor={`${p}-unit`}>
+          Drejtoria / Agjencia
+        </label>
+        <UnitSelect id={`${p}-unit`} units={units} value={orgUnit} onChange={setOrgUnit} />
+      </div>
+      {error && (
+        <Notice tone="error" className="sm:col-span-2">
+          {error}
+        </Notice>
+      )}
+      <div className="flex flex-wrap gap-2 sm:col-span-2">
+        <button type="submit" disabled={saving} className="btn-primary !py-2 text-sm disabled:opacity-60">
+          {saving ? "Duke shtuar..." : "Shto rolin"}
+        </button>
+        <button type="button" onClick={onCancel} disabled={saving} className="btn-ghost !py-2 text-sm">
+          Anulo
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function UserRow({
   user,
   units,
@@ -410,9 +493,25 @@ function UserRow({
   isSelf: boolean;
   onChange: (u: UserView) => void;
 }) {
-  const [panel, setPanel] = useState<"edit" | "password" | null>(null);
+  const [panel, setPanel] = useState<"edit" | "password" | "role" | null>(null);
   const [msg, setMsg] = useState<NoticeMessage | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function removeRole(role: ExtraRole) {
+    const label = `${ROLE_LABELS[role.role]}${role.orgUnit ? ` · ${role.orgUnit}` : ""}`;
+    if (!confirm(`Hiq rolin «${label}» nga ${user.name}?`)) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch(`/api/users/${user.id}/roles/${role.id}`, { method: "DELETE" }).catch(() => null);
+    const json = await r?.json().catch(() => ({}));
+    setBusy(false);
+    if (!r?.ok) {
+      setMsg({ ok: false, text: (json as { error?: string })?.error || "Roli nuk u hoq." });
+      return;
+    }
+    onChange(json as UserView);
+    setMsg({ ok: true, text: "Roli u hoq." });
+  }
 
   async function toggleActive() {
     const next = !user.active;
@@ -450,6 +549,34 @@ function UserRow({
             user.role === "MONITORUES" && (
               <p className="mt-1 text-xs font-medium text-sky-800">Monitoron gjithë sistemin</p>
             )
+          )}
+          {user.extraRoles.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[0.7rem] font-semibold text-muted">Role shtesë:</span>
+              {user.extraRoles.map((r) => (
+                <span
+                  key={r.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-[0.7rem] font-semibold text-ink"
+                >
+                  {ROLE_LABELS[r.role]}
+                  {r.orgUnit ? (
+                    <span className="font-medium text-brand">· {shortOrgUnit(r.orgUnit)}</span>
+                  ) : r.role === "MONITORUES" ? (
+                    <span className="font-medium text-sky-800">· gjithë sistemi</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => removeRole(r)}
+                    disabled={busy}
+                    className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                    aria-label={`Hiq rolin ${ROLE_LABELS[r.role]}`}
+                    title="Hiq rolin"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {!user.active && (
@@ -498,7 +625,29 @@ function UserRow({
             {user.active ? "Çaktivizo" : "Riaktivizo"}
           </button>
         )}
+        {user.active && (
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "role" ? null : "role")}
+            className={`${smallBtn} ${panel === "role" ? "!border-brand !text-brand" : ""}`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Shto rol
+          </button>
+        )}
       </div>
+      {panel === "role" && (
+        <AddRolePanel
+          user={user}
+          units={units}
+          onCancel={() => setPanel(null)}
+          onAdded={(u) => {
+            onChange(u);
+            setPanel(null);
+            setMsg({ ok: true, text: "Roli u shtua. Në hyrjen e radhës do të zgjedhë me cilin rol punon." });
+          }}
+        />
+      )}
 
       {panel === "edit" && (
         <EditUserForm
@@ -531,9 +680,30 @@ export function UsersManager({
   const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
   const [showInactive, setShowInactive] = useState(false);
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<Role | "">("");
+  const [unitFilter, setUnitFilter] = useState("");
   const active = users.filter((u) => u.active);
   const inactiveCount = users.length - active.length;
-  const shown = showInactive ? users : active;
+  const base = showInactive ? users : active;
+  const usedUnits = [
+    ...new Set(users.flatMap((u) => roleOptions(u).map((o) => o.orgUnit)).filter((n): n is string => !!n)),
+  ].sort((a, b) => a.localeCompare(b));
+  const needle = fold(query.trim());
+  const hasRoleFilter = (u: UserView, role: Role) => roleOptions(u).some((o) => o.role === role);
+  const shown = base.filter(
+    (u) =>
+      (!roleFilter || hasRoleFilter(u, roleFilter)) &&
+      (!unitFilter ||
+        roleOptions(u).some((o) => (unitFilter === NO_UNIT ? !o.orgUnit : o.orgUnit === unitFilter))) &&
+      (!needle || fold(`${u.name} ${u.username} ${u.email}`).includes(needle)),
+  );
+  const filtering = !!(needle || roleFilter || unitFilter);
+  const clearFilters = () => {
+    setQuery("");
+    setRoleFilter("");
+    setUnitFilter("");
+  };
 
   function replace(u: UserView) {
     setUsers((list) => list.map((x) => (x.id === u.id ? u : x)));
@@ -552,7 +722,9 @@ export function UsersManager({
 
       <div className="surface-card overflow-hidden lg:self-start">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-4 sm:px-6">
-          <h2 className="text-lg font-bold">Përdoruesit ({active.length})</h2>
+          <h2 className="text-lg font-bold">
+            Përdoruesit ({filtering ? `${shown.length} nga ${base.length}` : active.length})
+          </h2>
           {inactiveCount > 0 && (
             <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted">
               <input
@@ -565,6 +737,56 @@ export function UsersManager({
             </label>
           )}
         </div>
+        <div className="grid gap-2 border-b border-line bg-bg/60 px-4 py-3 sm:grid-cols-2 sm:px-6">
+          <label className="relative sm:col-span-2">
+            <span className="sr-only">Kërko përdorues</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Kërko sipas emrit, përdoruesit ose email-it..."
+              className="field !pl-9"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Filtro sipas rolit</span>
+            <select
+              className="field"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as Role | "")}
+            >
+              <option value="">Të gjitha rolet</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]} ({base.filter((u) => hasRoleFilter(u, r)).length})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">Filtro sipas drejtorisë</span>
+            <select className="field" value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}>
+              <option value="">Të gjitha drejtoritë</option>
+              <option value={NO_UNIT}>— pa drejtori —</option>
+              {usedUnits.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {shown.length === 0 && (
+          <div className="px-6 py-10 text-center text-sm text-muted">
+            Asnjë përdorues nuk përputhet me filtrat.
+            {filtering && (
+              <button type="button" onClick={clearFilters} className="ml-2 font-semibold text-brand underline">
+                Pastro filtrat
+              </button>
+            )}
+          </div>
+        )}
         <ul className="divide-y divide-line">
           {shown.map((u) => (
             <UserRow

@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Eye } from "lucide-react";
 import { requireSession } from "@/lib/auth-helpers";
 import { isReadOnlyRole } from "@/lib/constants";
@@ -15,12 +17,23 @@ export default async function PanelLayout({
   if (session.user.mustChangePassword) {
     return <ForcePasswordChange name={session.user.name} username={session.user.username} />;
   }
+  if (session.user.needsRole) {
+    const path = (await headers()).get("x-pathname") || "/panel";
+    redirect(`/roli?next=${encodeURIComponent(path)}`);
+  }
 
   const orgUnit = session.user.orgUnit ?? null;
 
   return (
     <div className="flex min-h-full flex-col bg-bg">
-      <PanelNav user={{ name: session.user.name, role: session.user.role, orgUnit }} />
+      <PanelNav
+        user={{
+          name: session.user.name,
+          role: session.user.role,
+          orgUnit,
+          roleCount: session.user.roleCount,
+        }}
+      />
       {isReadOnlyRole(session.user.role) && (
         <div className="border-b border-sky-200 bg-sky-50 px-3 py-2 text-center text-xs text-sky-900 sm:px-4 sm:text-sm print:hidden">
           <Eye className="mr-1.5 inline h-4 w-4 align-[-3px]" aria-hidden="true" />

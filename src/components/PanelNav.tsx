@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeftRight,
   BarChart3,
   LayoutDashboard,
   ListTodo,
@@ -18,6 +19,7 @@ import {
   canCreateTask,
   canManageUsers,
   canViewReports,
+  shortOrgUnit,
 } from "@/lib/constants";
 import type { Role } from "@/lib/types";
 import { signOut } from "next-auth/react";
@@ -27,11 +29,13 @@ type Props = {
     name: string;
     role: Role;
     orgUnit: string | null;
+    roleCount: number;
   };
 };
 
 export function PanelNav({ user }: Props) {
   const pathname = usePathname();
+  const multiRole = user.roleCount > 1;
 
   const links = [
     {
@@ -123,11 +127,23 @@ export function PanelNav({ user }: Props) {
                 <span className="block max-w-[10rem] truncate text-sm font-semibold leading-tight text-ink">
                   {user.name}
                 </span>
-                <span className="block text-[0.7rem] font-medium text-brand">
+                <span className="block max-w-[12rem] truncate text-[0.7rem] font-medium text-brand">
                   {ROLE_LABELS[user.role]}
+                  {multiRole && user.orgUnit ? ` · ${shortOrgUnit(user.orgUnit)}` : ""}
                 </span>
               </span>
             </Link>
+            {multiRole && (
+              <Link
+                href={`/roli?next=${encodeURIComponent(pathname)}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-2 text-sm font-semibold text-ink/70 transition hover:border-brand hover:text-brand sm:px-3"
+                aria-label="Ndërro rolin"
+                title="Ndërro rolin"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="hidden lg:inline">Ndërro rolin</span>
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/" })}

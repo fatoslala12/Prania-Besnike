@@ -9,6 +9,7 @@ import {
   setUserActive,
   updateUser,
 } from "@/lib/repo";
+import { hasRole } from "@/lib/user-roles";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (toggle.success) {
     const { active } = toggle.data;
     if (self && !active) return bad("Nuk mund ta çaktivizoni llogarinë tuaj.");
-    if (!active && target.role === "ADMIN" && (await countActiveAdmins(id)) === 0) {
+    if (!active && hasRole(target, "ADMIN") && (await countActiveAdmins(id)) === 0) {
       return bad("Duhet të mbetet të paktën një Super Administrator aktiv.");
     }
     return NextResponse.json(await setUserActive(id, active));
@@ -58,10 +59,19 @@ export async function PATCH(req: Request, { params }: Params) {
   if (self && data.role !== target.role) {
     return bad("Nuk mund ta ndryshoni rolin tuaj. Kërkojini një Super Administratori tjetër.");
   }
-  if (target.role === "ADMIN" && data.role !== "ADMIN" && (await countActiveAdmins(id)) === 0) {
+  const keepsAdmin = target.extraRoles.some((r) => r.role === "ADMIN");
+  if (
+    target.role === "ADMIN" &&
+    data.role !== "ADMIN" &&
+    !keepsAdmin &&
+    (await countActiveAdmins(id)) === 0
+  ) {
     return bad("Duhet të mbetet të paktën një Super Administrator aktiv.");
   }
   const orgUnit = data.orgUnit || null;
+  if (target.extraRoles.some((r) => r.role === data.role && (r.orgUnit ?? null) === orgUnit)) {
+    return bad("Ky rol (me këtë drejtori) e ka tashmë si rol shtesë. Hiqeni atë fillimisht.", 409);
+  }
   if (orgUnit && orgUnit !== target.orgUnit && !(await isActiveOrgUnit(orgUnit))) {
     return bad("Drejtoria e zgjedhur nuk është aktive");
   }

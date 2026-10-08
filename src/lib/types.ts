@@ -13,6 +13,9 @@ export type EventType =
 
 export type EventMeta = Record<string, string | number | boolean | null | undefined>;
 
+/** Rol shtesë i një përdoruesi; `role`/`orgUnit` te përdoruesi mbeten roli kryesor. */
+export type ExtraRole = { id: string; role: Role; orgUnit: string | null };
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -21,6 +24,7 @@ export type AuthUser = {
   passwordHash: string;
   role: Role;
   orgUnit: string | null;
+  extraRoles: ExtraRole[];
   active: boolean;
   mustChangePassword: boolean;
   sessionVersion: number;
@@ -33,6 +37,7 @@ export type UserView = {
   username: string;
   role: Role;
   orgUnit: string | null;
+  extraRoles: ExtraRole[];
   active: boolean;
   mustChangePassword: boolean;
   emailNotifications: boolean;

@@ -24,6 +24,7 @@ import type {
   DocumentRecord,
   EventMeta,
   EventType,
+  ExtraRole,
   HistoryView,
   NewDocumentInput,
   NewNotification,
@@ -49,7 +50,8 @@ import type {
 
 export type { Role, TaskStatus };
 
-type LocalUser = Omit<AuthUser, "mustChangePassword" | "sessionVersion"> & {
+type LocalUser = Omit<AuthUser, "mustChangePassword" | "sessionVersion" | "extraRoles"> & {
+  extraRoles?: ExtraRole[];
   emailNotifications?: boolean;
   mustChangePassword?: boolean;
   sessionVersion?: number;
@@ -275,6 +277,7 @@ function toUserView(u: LocalUser): UserView {
     username: u.username,
     role: u.role,
     orgUnit: u.orgUnit,
+    extraRoles: u.extraRoles ?? [],
     active: u.active,
     mustChangePassword: u.mustChangePassword ?? false,
     emailNotifications: u.emailNotifications ?? true,
@@ -291,6 +294,7 @@ function toAuthUser(u: LocalUser): AuthUser {
     passwordHash: u.passwordHash,
     role: u.role,
     orgUnit: u.orgUnit,
+    extraRoles: u.extraRoles ?? [],
     active: u.active,
     mustChangePassword: u.mustChangePassword ?? false,
     sessionVersion: u.sessionVersion ?? 0,
@@ -406,8 +410,32 @@ export function setTemporaryPassword(id: string, password: string): boolean {
 }
 
 export function countActiveAdmins(excludeId?: string) {
-  return readStore().users.filter((u) => u.role === "ADMIN" && u.active && u.id !== excludeId)
-    .length;
+  return readStore().users.filter(
+    (u) =>
+      u.active &&
+      u.id !== excludeId &&
+      (u.role === "ADMIN" || (u.extraRoles ?? []).some((r) => r.role === "ADMIN")),
+  ).length;
+}
+
+export function addUserRole(userId: string, role: Role, orgUnit: string | null): UserView | null {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === userId);
+  if (!u) return null;
+  u.extraRoles = [...(u.extraRoles ?? []), { id: randomUUID(), role, orgUnit }];
+  u.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return toUserView(u);
+}
+
+export function removeUserRole(userId: string, roleId: string): UserView | null {
+  const store = readStore();
+  const u = store.users.find((x) => x.id === userId);
+  if (!u || !(u.extraRoles ?? []).some((r) => r.id === roleId)) return null;
+  u.extraRoles = (u.extraRoles ?? []).filter((r) => r.id !== roleId);
+  u.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return toUserView(u);
 }
 
 export function createPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date) {
@@ -459,7 +487,11 @@ export function orgUnitUsage(): Record<string, OrgUnitUsage> {
   const store = readStore();
   const usage: Record<string, OrgUnitUsage> = {};
   const at = (name: string) => (usage[name] ??= { users: 0, tasks: 0, openTasks: 0 });
-  for (const u of store.users) if (u.active && u.orgUnit) at(u.orgUnit).users++;
+  for (const u of store.users) {
+    if (!u.active) continue;
+    const units = new Set([u.orgUnit, ...(u.extraRoles ?? []).map((r) => r.orgUnit)]);
+    for (const name of units) if (name) at(name).users++;
+  }
   for (const t of store.tasks) {
     if (!t.orgUnit) continue;
     at(t.orgUnit).tasks++;
@@ -490,7 +522,10 @@ export function renameOrgUnit(id: string, name: string): OrgUnitView | null {
   if (orgUnitNameTaken(store, name, id)) throw new Error("EXISTS");
   const old = unit.name;
   unit.name = name;
-  for (const u of store.users) if (u.orgUnit === old) u.orgUnit = name;
+  for (const u of store.users) {
+    if (u.orgUnit === old) u.orgUnit = name;
+    for (const r of u.extraRoles ?? []) if (r.orgUnit === old) r.orgUnit = name;
+  }
   for (const t of store.tasks) if (t.orgUnit === old) t.orgUnit = name;
   writeStore(store);
   return unit;

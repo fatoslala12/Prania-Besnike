@@ -3,6 +3,7 @@ import { mailUsers, notificationEmail } from "@/lib/notify";
 import { OVERDUE_DAYS } from "@/lib/reports";
 import { createNotifications, hasNotificationSince, listTasks, listUsers } from "@/lib/repo";
 import type { NewNotification, TaskListItem, UserView } from "@/lib/types";
+import { expandRoles } from "@/lib/user-roles";
 
 const TZ = "Europe/Tirane";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -31,12 +32,18 @@ function tiranaClock(now: Date) {
   };
 }
 
-function tasksFor(user: UserView, overdue: TaskListItem[]) {
+function tasksForRole(user: UserView, overdue: TaskListItem[]) {
   if (isReadOnlyRole(user.role)) return [];
   if (isManagerRole(user.role)) return overdue;
   return overdue.filter(
     (t) => (!!t.orgUnit && t.orgUnit === user.orgUnit) || t.assigneeId === user.id,
   );
+}
+
+/** Bashkimi i kërkesave për të gjitha rolet e përdoruesit, në rendin e `overdue`. */
+function tasksFor(user: UserView, overdue: TaskListItem[]) {
+  const ids = new Set(expandRoles([user]).flatMap((r) => tasksForRole(r, overdue).map((t) => t.id)));
+  return overdue.filter((t) => ids.has(t.id));
 }
 
 function digest(tasks: TaskListItem[], now: number) {

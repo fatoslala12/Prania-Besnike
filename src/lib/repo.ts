@@ -75,6 +75,18 @@ export async function setUserActive(id: string, active: boolean): Promise<UserVi
   return (await store()).setUserActive(id, active);
 }
 
+export async function addUserRole(
+  userId: string,
+  role: Role,
+  orgUnit: string | null,
+): Promise<UserView | null> {
+  return (await store()).addUserRole(userId, role, orgUnit);
+}
+
+export async function removeUserRole(userId: string, roleId: string): Promise<UserView | null> {
+  return (await store()).removeUserRole(userId, roleId);
+}
+
 /** Mbyll seancat e hapura dhe e detyron përdoruesin ta ndryshojë në hyrjen e radhës. */
 export async function setTemporaryPassword(id: string, password: string): Promise<boolean> {
   return (await store()).setTemporaryPassword(id, password);

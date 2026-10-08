@@ -10,6 +10,7 @@ import type {
   TaskStatus,
   UserView,
 } from "@/lib/types";
+import { expandRoles } from "@/lib/user-roles";
 
 export type TaskChange =
   | { kind: "TASK_NEW"; task: TaskRecord }
@@ -27,10 +28,11 @@ type Actor = { id: string | null; name: string };
  * - Super Admin/Administrator/Recepsion: detyra të reja, ri-delegime, ndryshime statusi.
  * - Krijuesi i detyrës: çdo përditësim të saj.
  * - Monitoruesi: asnjë (përndryshe do merrte njoftim për çdo veprim në sistem).
+ * Kush ka disa role merr njoftimet e të gjitha roleve, pavarësisht cilin po përdor.
  */
 function recipients(change: TaskChange, allUsers: UserView[], actor: Actor) {
   const { task } = change;
-  const users = allUsers.filter((u) => !isReadOnlyRole(u.role));
+  const users = expandRoles(allUsers).filter((u) => !isReadOnlyRole(u.role));
   const unit = users.filter(
     (u) =>
       (u.role === "PERFAQESUES" && !!task.orgUnit && u.orgUnit === task.orgUnit) ||

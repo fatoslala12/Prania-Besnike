@@ -10,6 +10,15 @@ export const ROLE_LABELS: Record<Role, string> = {
   MONITORUES: "Monitorues",
 };
 
+/** Përshkrim i shkurtër për kartat e zgjedhjes së rolit. */
+export const ROLE_SUMMARIES: Record<Role, string> = {
+  PERFAQESUES: "Trajtoni kërkesat e deleguara te drejtoria juaj.",
+  RECEPSION: "Regjistroni dhe delegoni kërkesat; shihni gjithçka dhe raportet.",
+  ADMINISTRATOR: "Regjistroni, delegoni dhe ndiqni të gjitha kërkesat, me raportet.",
+  ADMIN: "Administrim i plotë: përdoruesit, drejtoritë dhe të gjitha kërkesat.",
+  MONITORUES: "Vetëm shikim: ndiqni kërkesat pa ndryshuar asgjë.",
+};
+
 export const STATUS_LABELS = {
   I_RI: "I ri",
   NE_PROCES: "Në proces",
