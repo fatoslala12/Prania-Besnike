@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { canManageUsers } from "@/lib/constants";
 import { orgUnitNameSchema } from "@/lib/org-unit-schema";
 import { createOrgUnit, listOrgUnits } from "@/lib/repo";
@@ -23,7 +24,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Emri duhet të ketë 3–150 karaktere." }, { status: 400 });
   }
   try {
-    return NextResponse.json(await createOrgUnit(parsed.data.name), { status: 201 });
+    const unit = await createOrgUnit(parsed.data.name);
+    await recordAudit("ORG_UNIT_CREATED", { ...auditActor(session), targetId: unit.id, targetLabel: unit.name });
+    return NextResponse.json(unit, { status: 201 });
   } catch (e) {
     if (e instanceof Error && e.message === "EXISTS") {
       return NextResponse.json({ error: "Ekziston tashmë një drejtori me këtë emër." }, { status: 409 });

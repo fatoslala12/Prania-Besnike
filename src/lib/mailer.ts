@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { recordAudit } from "@/lib/audit";
 
 let transporter: Transporter | null = null;
 
@@ -64,12 +65,20 @@ export async function sendMail(msg: {
 }) {
   if (!mailEnabled()) return;
   const { automated, ...mail } = msg;
-  await getTransporter().sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
-    replyTo: process.env.MAIL_REPLY_TO || process.env.SMTP_USER,
-    headers: automated
-      ? { "Auto-Submitted": "auto-generated", "X-Auto-Response-Suppress": "All" }
-      : undefined,
-    ...mail,
-  });
+  const logged = { targetLabel: msg.to, details: msg.subject };
+  try {
+    await getTransporter().sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      replyTo: process.env.MAIL_REPLY_TO || process.env.SMTP_USER,
+      headers: automated
+        ? { "Auto-Submitted": "auto-generated", "X-Auto-Response-Suppress": "All" }
+        : undefined,
+      ...mail,
+    });
+  } catch (e) {
+    const reason = e instanceof Error ? `${(e as { code?: string }).code ?? ""} ${e.message}`.trim() : "Gabim i panjohur";
+    await recordAudit("EMAIL_FAILED", { ...logged, success: false, reason }, { headers: null });
+    throw e;
+  }
+  await recordAudit("EMAIL_SENT", logged, { headers: null });
 }

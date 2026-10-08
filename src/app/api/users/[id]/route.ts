@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { canManageUsers } from "@/lib/constants";
+import { auditActor, recordAudit } from "@/lib/audit";
+import { ROLE_LABELS, canManageUsers } from "@/lib/constants";
 import {
   countActiveAdmins,
   getAnyUser,
@@ -48,7 +49,15 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!active && hasRole(target, "ADMIN") && (await countActiveAdmins(id)) === 0) {
       return bad("Duhet të mbetet të paktën një Super Administrator aktiv.");
     }
-    return NextResponse.json(await setUserActive(id, active));
+    const user = await setUserActive(id, active);
+    if (user && user.active !== target.active) {
+      await recordAudit(active ? "USER_ACTIVATED" : "USER_DEACTIVATED", {
+        ...auditActor(session),
+        targetId: id,
+        targetLabel: `${target.name} (${target.username})`,
+      });
+    }
+    return NextResponse.json(user);
   }
 
   const edit = editSchema.safeParse(body);
@@ -85,6 +94,22 @@ export async function PATCH(req: Request, { params }: Params) {
       orgUnit,
     });
     if (!user) return bad("Përdoruesi nuk u gjet", 404);
+    const changes = [
+      target.name !== user.name && `emri: ${target.name} → ${user.name}`,
+      target.email !== user.email && `email: ${target.email} → ${user.email}`,
+      target.username !== user.username && `përdoruesi: ${target.username} → ${user.username}`,
+      target.role !== user.role && `roli: ${ROLE_LABELS[target.role]} → ${ROLE_LABELS[user.role]}`,
+      (target.orgUnit ?? null) !== (user.orgUnit ?? null) &&
+        `drejtoria: ${target.orgUnit ?? "—"} → ${user.orgUnit ?? "—"}`,
+    ].filter(Boolean);
+    if (changes.length) {
+      await recordAudit("USER_UPDATED", {
+        ...auditActor(session),
+        targetId: id,
+        targetLabel: `${user.name} (${user.username})`,
+        details: changes.join("; "),
+      });
+    }
     return NextResponse.json(user);
   } catch (e) {
     if (e instanceof Error && e.message === "EXISTS") {

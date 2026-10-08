@@ -2,14 +2,17 @@ import path from "path";
 import type { EventDraft } from "@/lib/task-events";
 import type {
   Actor,
+  AuditEntry,
   AuthUser,
   CommentView,
   DashboardStats,
   DocumentRecord,
+  NewAuditEntry,
   NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
+  NotificationStat,
   NotificationView,
   OrgUnitUsage,
   OrgUnitView,
@@ -295,4 +298,26 @@ export async function markNotificationsRead(userId: string, ids?: string[]): Pro
 
 export async function getReportData(range: { from: Date; to: Date }): Promise<ReportData> {
   return (await store()).getReportData(range);
+}
+
+export async function findAnyUserByLogin(
+  login: string,
+): Promise<{ id: string; name: string; role: Role; active: boolean } | null> {
+  return (await store()).findAnyUserByLogin(login);
+}
+
+export async function listNotificationStats(range: { from: Date; to: Date }): Promise<NotificationStat[]> {
+  return (await store()).listNotificationStats(range);
+}
+
+export async function addAuditLog(entry: NewAuditEntry): Promise<void> {
+  await (await store()).addAuditLog(entry);
+}
+
+export async function listAuditLogs(range: { from: Date; to: Date }, limit: number): Promise<AuditEntry[]> {
+  return (await store()).listAuditLogs(range, limit);
+}
+
+export async function pruneAuditLogs(before: Date): Promise<number> {
+  return (await store()).pruneAuditLogs(before);
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { recordAudit } from "@/lib/audit";
 import { hashResetToken } from "@/lib/password-reset";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { resetPasswordWithToken } from "@/lib/repo";
@@ -22,10 +23,12 @@ export async function POST(req: Request) {
   }
   const result = await resetPasswordWithToken(hashResetToken(parsed.data.token), parsed.data.password);
   if (result === "INVALID") {
+    await recordAudit("PASSWORD_RESET_DONE", { success: false, reason: "Lidhje e skaduar ose e përdorur" });
     return NextResponse.json(
       { error: "Lidhja ka skaduar ose është përdorur tashmë. Kërkoni një lidhje të re." },
       { status: 400 },
     );
   }
+  await recordAudit("PASSWORD_RESET_DONE", {});
   return NextResponse.json({ ok: true });
 }

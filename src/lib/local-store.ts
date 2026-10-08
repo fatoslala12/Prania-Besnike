@@ -18,6 +18,7 @@ import { computeStats } from "@/lib/stats";
 import { DEFAULT_ORG_UNITS } from "@/lib/constants";
 import type {
   Actor,
+  AuditEntry,
   AuthUser,
   CommentView,
   DashboardStats,
@@ -26,10 +27,12 @@ import type {
   EventType,
   ExtraRole,
   HistoryView,
+  NewAuditEntry,
   NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
+  NotificationStat,
   NotificationView,
   OrgUnitUsage,
   OrgUnitView,
@@ -106,6 +109,7 @@ type StoreData = {
   notifications: NotificationView[];
   orgUnits: OrgUnitView[];
   resetTokens: LocalResetToken[];
+  auditLogs?: AuditEntry[];
 };
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -323,6 +327,12 @@ export function findUserByLogin(login: string): AuthUser | null {
     (x) => x.active && (x.email.toLowerCase() === q || x.username.toLowerCase() === q),
   );
   return u ? toAuthUser(u) : null;
+}
+
+export function findAnyUserByLogin(login: string) {
+  const q = login.trim().toLowerCase();
+  const u = readStore().users.find((x) => x.email.toLowerCase() === q || x.username.toLowerCase() === q);
+  return u ? { id: u.id, name: u.name, role: u.role, active: u.active } : null;
 }
 
 export function findUserById(id: string): AuthUser | null {
@@ -937,6 +947,60 @@ export function markNotificationsRead(userId: string, ids?: string[]) {
     if (n.userId === userId && !n.readAt && (!only || only.has(n.id))) n.readAt = now;
   }
   writeStore(store);
+}
+
+export function listNotificationStats(range: { from: Date; to: Date }): NotificationStat[] {
+  const from = range.from.toISOString();
+  const to = range.to.toISOString();
+  return readStore()
+    .notifications.filter((n) => n.createdAt >= from && n.createdAt <= to)
+    .map(({ userId, kind, createdAt, readAt }) => ({ userId, kind, createdAt, readAt }));
+}
+
+const LOCAL_AUDIT_LIMIT = 5000;
+
+export function addAuditLog(entry: NewAuditEntry) {
+  const store = readStore();
+  const logs = store.auditLogs ?? [];
+  logs.push({
+    reason: null,
+    login: null,
+    userId: null,
+    userName: null,
+    role: null,
+    ip: null,
+    userAgent: null,
+    targetId: null,
+    targetLabel: null,
+    details: null,
+    ...entry,
+    success: entry.success ?? true,
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+  });
+  store.auditLogs = logs.slice(-LOCAL_AUDIT_LIMIT);
+  writeStore(store);
+}
+
+export function listAuditLogs(range: { from: Date; to: Date }, limit: number): AuditEntry[] {
+  const from = range.from.toISOString();
+  const to = range.to.toISOString();
+  return (readStore().auditLogs ?? [])
+    .filter((l) => l.createdAt >= from && l.createdAt <= to)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+export function pruneAuditLogs(before: Date) {
+  const store = readStore();
+  const iso = before.toISOString();
+  const kept = (store.auditLogs ?? []).filter((l) => l.createdAt >= iso);
+  const removed = (store.auditLogs?.length ?? 0) - kept.length;
+  if (removed) {
+    store.auditLogs = kept;
+    writeStore(store);
+  }
+  return removed;
 }
 
 export function getReportData(range: { from: Date; to: Date }): ReportData {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { accessOf, actorOf } from "@/lib/auth-helpers";
 import { canAccessTask, canAssignTask, canRedelegate } from "@/lib/constants";
 import { notifyTaskChange } from "@/lib/notify";
@@ -141,9 +142,16 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  if (!(await getTask(id))) {
+  const task = await getTask(id);
+  if (!task) {
     return NextResponse.json({ error: "Nuk u gjet" }, { status: 404 });
   }
   await deleteTask(id);
+  await recordAudit("TASK_DELETED", {
+    ...auditActor(session),
+    targetId: id,
+    targetLabel: `${task.number} · ${task.title}`,
+    details: [task.orgUnit, task.citizenName].filter(Boolean).join(" · ") || null,
+  });
   return NextResponse.json({ ok: true });
 }

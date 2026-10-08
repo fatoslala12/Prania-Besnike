@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { canManageUsers, isManagerRole } from "@/lib/constants";
+import { auditActor, recordAudit } from "@/lib/audit";
+import { ROLE_LABELS, canManageUsers, isManagerRole } from "@/lib/constants";
 import { createUser, isActiveOrgUnit, listUsers } from "@/lib/repo";
 
 export async function GET() {
@@ -62,6 +63,12 @@ export async function POST(req: Request) {
       role: data.role,
       orgUnit: data.orgUnit || null,
       mustChangePassword: data.mustChangePassword ?? true,
+    });
+    await recordAudit("USER_CREATED", {
+      ...auditActor(session),
+      targetId: user.id,
+      targetLabel: `${user.name} (${user.username})`,
+      details: ROLE_LABELS[user.role] + (user.orgUnit ? ` · ${user.orgUnit}` : ""),
     });
     return NextResponse.json(user, { status: 201 });
   } catch (e) {

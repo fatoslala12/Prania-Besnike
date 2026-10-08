@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { canManageUsers } from "@/lib/constants";
+import { auditActor, recordAudit } from "@/lib/audit";
+import { ROLE_LABELS, canManageUsers } from "@/lib/constants";
 import { addUserRole, getAnyUser, isActiveOrgUnit } from "@/lib/repo";
 import { hasRoleAssignment, roleOptions } from "@/lib/user-roles";
 
@@ -43,5 +44,11 @@ export async function POST(req: Request, { params }: Params) {
 
   const user = await addUserRole(id, role, orgUnit);
   if (!user) return bad("Përdoruesi nuk u gjet", 404);
+  await recordAudit("USER_ROLE_ADDED", {
+    ...auditActor(session),
+    targetId: id,
+    targetLabel: `${target.name} (${target.username})`,
+    details: ROLE_LABELS[role] + (orgUnit ? ` · ${orgUnit}` : ""),
+  });
   return NextResponse.json(user, { status: 201 });
 }

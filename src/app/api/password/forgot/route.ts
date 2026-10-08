@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { z } from "zod";
+import { recordAudit } from "@/lib/audit";
 import { sendPasswordResetEmail } from "@/lib/password-reset";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { findUserByLogin } from "@/lib/repo";
@@ -26,6 +27,14 @@ export async function POST(req: Request) {
   }
 
   const user = await findUserByLogin(login);
+  await recordAudit("PASSWORD_RESET_REQUESTED", {
+    login,
+    userId: user?.id,
+    userName: user?.name,
+    role: user?.role,
+    success: !!user,
+    reason: user ? null : "Llogari e panjohur ose e çaktivizuar (s'u dërgua asgjë)",
+  });
   if (user?.email) {
     after(async () => {
       try {

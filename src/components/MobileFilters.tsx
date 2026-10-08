@@ -6,9 +6,11 @@ import { ChevronDown, SlidersHorizontal } from "lucide-react";
 /** Në celular fushat e filtrave palosen; nga md e lart shfaqen gjithmonë. */
 export function MobileFilters({
   activeCount,
+  label = "Filtrat e raportit",
   children,
 }: {
   activeCount: number;
+  label?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -22,7 +24,7 @@ export function MobileFilters({
       >
         <span className="inline-flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-brand" />
-          Filtrat e raportit
+          {label}
           {activeCount > 0 && (
             <span className="rounded-full bg-brand px-2 py-0.5 text-[0.7rem] text-white">
               {activeCount} aktivë

@@ -200,6 +200,48 @@ export type NotificationView = NewNotification & {
   createdAt: string;
 };
 
+/** Pa trupin e njoftimit: mjafton për statistikat. */
+export type NotificationStat = {
+  userId: string;
+  kind: NotificationKind;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type NewAuditEntry = {
+  action: string;
+  module: string;
+  success?: boolean;
+  reason?: string | null;
+  login?: string | null;
+  userId?: string | null;
+  userName?: string | null;
+  role?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  details?: string | null;
+};
+
+export type AuditEntry = {
+  id: string;
+  createdAt: string;
+  action: string;
+  module: string;
+  success: boolean;
+  reason: string | null;
+  login: string | null;
+  userId: string | null;
+  userName: string | null;
+  role: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  targetId: string | null;
+  targetLabel: string | null;
+  details: string | null;
+};
+
 export type ReportTask = TaskRecord & {
   creatorName: string | null;
   completedAt: string | null;

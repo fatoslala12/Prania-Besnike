@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { accessOf, actorOf } from "@/lib/auth-helpers";
 import { canCreateTask, canSeeAllTasks } from "@/lib/constants";
 import { notifyTaskChange } from "@/lib/notify";
@@ -62,5 +63,11 @@ export async function POST(req: Request) {
     actor,
   );
   await notifyTaskChange({ kind: "TASK_NEW", task }, actor);
+  await recordAudit("TASK_CREATED", {
+    ...auditActor(session),
+    targetId: task.id,
+    targetLabel: `${task.number} · ${task.title}`,
+    details: task.orgUnit,
+  });
   return NextResponse.json(task, { status: 201 });
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { SiteFooter } from "@/components/SiteFooter";
+import { AUDIT_RETENTION_DAYS } from "@/lib/audit-catalog";
 
 export const metadata = {
   title: "Mbrojtja e të dhënave",
@@ -137,6 +138,13 @@ export default function PrivacyPage() {
             asgjësohen — emri, telefoni, teksti i hallit dhe dokumentet hiqen —
             dhe mbetet vetëm informacion pa emër: shifra për statistikë dhe
             llogaridhënie publike.
+          </p>
+          <p>
+            Për sigurinë e sistemit regjistrojmë adresën IP dhe llojin e
+            pajisjes/shfletuesit kur dërgohet një kërkesë ose kur stafi hyn në
+            panel. Këto shërbejnë vetëm për të zbuluar abuzime dhe ndërhyrje të
+            paautorizuara, i sheh vetëm administratori i sistemit dhe{" "}
+            <strong>fshihen automatikisht pas {AUDIT_RETENTION_DAYS} ditësh</strong>.
           </p>
 
           <h2>5. Të drejtat tuaja (nenet 12–20)</h2>

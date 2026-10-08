@@ -145,6 +145,15 @@ body {
   color: var(--brand);
 }
 
+/* Rreshta me rrëshqitje horizontale (chips në celular) pa shirit të dukshëm. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .hero-wash {
   background:
     radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 60%),

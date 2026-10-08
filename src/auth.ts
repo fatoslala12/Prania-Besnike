@@ -2,7 +2,8 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { findUserById, findUserByLogin } from "@/lib/repo";
+import { recordAudit } from "@/lib/audit";
+import { findAnyUserByLogin, findUserById, findUserByLogin } from "@/lib/repo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { Role } from "@/lib/types";
 import { PRIMARY_ROLE_KEY, findRoleOption, roleOptions } from "@/lib/user-roles";
@@ -63,20 +64,47 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           })
           .safeParse(credentials);
 
-        if (!parsed.success) return null;
+        const failed = async (reason: string, login: string | null, who?: { id: string; name: string; role: string }) => {
+          await recordAudit(
+            "LOGIN_FAILED",
+            { success: false, reason, login, userId: who?.id, userName: who?.name, role: who?.role },
+            { headers: request.headers },
+          );
+          return null;
+        };
+        if (!parsed.success) {
+          const raw = (credentials as { login?: unknown } | undefined)?.login;
+          return failed("INVALID_INPUT", typeof raw === "string" ? raw : null);
+        }
 
         const { login, password } = parsed.data;
         const ip = clientIp(request.headers);
         const limited =
           !rateLimit(`login:ip:${ip}`, 20, 15 * 60_000).ok ||
           !rateLimit(`login:user:${login.toLowerCase()}`, 8, 15 * 60_000).ok;
-        if (limited) return null;
+        if (limited) return failed("RATE_LIMITED", login);
 
         const user = await findUserByLogin(login);
-        if (!user) return null;
+        if (!user) {
+          const other = await findAnyUserByLogin(login);
+          return other ? failed("INACTIVE", login, other) : failed("UNKNOWN_USER", login);
+        }
 
         const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) return failed("WRONG_PASSWORD", login, user);
+
+        const roleCount = roleOptions(user).length;
+        await recordAudit(
+          "LOGIN_SUCCESS",
+          {
+            login,
+            userId: user.id,
+            userName: user.name,
+            role: user.role,
+            details: roleCount > 1 ? `${roleCount} role — zgjedh rolin pas hyrjes` : null,
+          },
+          { headers: request.headers },
+        );
 
         return {
           id: user.id,
@@ -87,7 +115,7 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           orgUnit: user.orgUnit,
           mustChangePassword: user.mustChangePassword,
           sessionVersion: user.sessionVersion,
-          roleCount: roleOptions(user).length,
+          roleCount,
         };
       },
     }),
@@ -154,6 +182,18 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
         session.user.needsRole = !token.activeRole;
       }
       return session;
+    },
+  },
+  events: {
+    async signOut(message) {
+      const token = "token" in message ? message.token : null;
+      if (!token?.id) return;
+      await recordAudit("LOGOUT", {
+        userId: token.id,
+        userName: token.name ?? null,
+        role: token.role,
+        login: token.username,
+      });
     },
   },
   trustHost: true,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { recordAudit } from "@/lib/audit";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { notifyTaskChange } from "@/lib/notify";
 import { createPdfToken } from "@/lib/pdf-token";
@@ -77,6 +78,16 @@ export async function POST(req: Request) {
       actor,
     );
     await notifyTaskChange({ kind: "TASK_NEW", task }, actor);
+    await recordAudit(
+      "CITIZEN_REQUEST",
+      {
+        userName: data.citizenName,
+        targetId: task.id,
+        targetLabel: `${task.number} · ${task.orgUnit}`,
+        details: [data.citizenPhone, data.citizenEmail].filter(Boolean).join(" · ") || null,
+      },
+      { headers: req.headers },
+    );
     return NextResponse.json({ ok: true, number: task.number, pdfToken: createPdfToken(task.id) });
   } catch (e) {
     console.error(e);

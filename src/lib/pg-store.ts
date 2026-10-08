@@ -15,6 +15,7 @@ import {
 } from "@/lib/task-events";
 import type {
   Actor,
+  AuditEntry,
   AuthUser,
   CommentView,
   DashboardStats,
@@ -22,10 +23,12 @@ import type {
   EventMeta,
   ExtraRole,
   HistoryView,
+  NewAuditEntry,
   NewDocumentInput,
   NewNotification,
   NewTaskInput,
   NotificationKind,
+  NotificationStat,
   NotificationView,
   OrgUnitUsage,
   OrgUnitView,
@@ -180,6 +183,19 @@ export async function findUserByLogin(login: string): Promise<AuthUser | null> {
     include: withRoles,
   });
   return u ? toAuthUser(u) : null;
+}
+
+/** Për regjistrin e hyrjeve: dallon "llogari e çaktivizuar" nga "përdorues i panjohur". */
+export async function findAnyUserByLogin(login: string) {
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: login.trim(), mode: "insensitive" } },
+        { username: { equals: login.trim(), mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, name: true, role: true, active: true },
+  });
 }
 
 /** Edhe përdoruesit joaktivë — që seanca e tyre të mbyllet. */
@@ -832,6 +848,37 @@ export async function markNotificationsRead(userId: string, ids?: string[]) {
     where: { userId, readAt: null, ...(ids ? { id: { in: ids } } : {}) },
     data: { readAt: new Date() },
   });
+}
+
+export async function listNotificationStats(range: { from: Date; to: Date }): Promise<NotificationStat[]> {
+  const rows = await prisma.notification.findMany({
+    where: { createdAt: { gte: range.from, lte: range.to } },
+    select: { userId: true, kind: true, createdAt: true, readAt: true },
+  });
+  return rows.map((n) => ({
+    userId: n.userId,
+    kind: n.kind as NotificationKind,
+    createdAt: n.createdAt.toISOString(),
+    readAt: n.readAt?.toISOString() ?? null,
+  }));
+}
+
+export async function addAuditLog(entry: NewAuditEntry) {
+  await prisma.auditLog.create({ data: entry });
+}
+
+export async function listAuditLogs(range: { from: Date; to: Date }, limit: number): Promise<AuditEntry[]> {
+  const rows = await prisma.auditLog.findMany({
+    where: { createdAt: { gte: range.from, lte: range.to } },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+}
+
+export async function pruneAuditLogs(before: Date) {
+  const { count } = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: before } } });
+  return count;
 }
 
 export async function getReportData(range: { from: Date; to: Date }): Promise<ReportData> {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { MAIL_DISABLED_ERROR } from "@/lib/citizen-mail";
 import { canManageUsers } from "@/lib/constants";
 import { sendPasswordResetEmail, temporaryPassword } from "@/lib/password-reset";
@@ -35,6 +36,12 @@ export async function POST(req: Request, { params }: Params) {
   if (parsed.data.mode === "temporary") {
     const password = temporaryPassword();
     if (!(await setTemporaryPassword(id, password))) return bad("Përdoruesi nuk u gjet", 404);
+    await recordAudit("USER_PASSWORD_RESET", {
+      ...auditActor(session),
+      targetId: id,
+      targetLabel: `${target.name} (${target.username})`,
+      details: "Fjalëkalim i përkohshëm",
+    });
     return NextResponse.json({ ok: true, password });
   }
 
@@ -45,5 +52,11 @@ export async function POST(req: Request, { params }: Params) {
     console.error("Email-i i rivendosjes dështoi", e);
     return bad("Email-i nuk u dërgua. Provoni përsëri ose përdorni fjalëkalimin e përkohshëm.", 502);
   }
+  await recordAudit("USER_PASSWORD_RESET", {
+    ...auditActor(session),
+    targetId: id,
+    targetLabel: `${target.name} (${target.username})`,
+    details: `Lidhje rivendosjeje te ${target.email}`,
+  });
   return NextResponse.json({ ok: true, to: target.email });
 }

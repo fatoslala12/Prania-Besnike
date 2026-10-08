@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { actorOf } from "@/lib/auth-helpers";
 import { MAIL_DISABLED_ERROR, mailPdfToCitizen } from "@/lib/citizen-mail";
 import { responseDate, responsePdf } from "@/lib/pdf";
@@ -45,5 +46,11 @@ export async function POST(_req: Request, { params }: Params) {
 
   const sent = await markResponseSent(id, responseId, task.citizenEmail, sentAt);
   await logTaskEvent(task.id, emailEvent(response.number, task.citizenEmail, "përgjigjes"), actorOf(session));
+  await recordAudit("RESPONSE_SENT", {
+    ...auditActor(session),
+    targetId: task.id,
+    targetLabel: `${response.number} · ${task.title}`,
+    details: `Te ${task.citizenEmail}`,
+  });
   return NextResponse.json({ ok: true, to: task.citizenEmail, response: sent ?? letter });
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth, unstable_update } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
+import { ROLE_LABELS } from "@/lib/constants";
 import { findUserById } from "@/lib/repo";
 import { findRoleOption } from "@/lib/user-roles";
 
@@ -24,5 +26,12 @@ export async function POST(req: Request) {
   if (updated?.user?.roleKey !== option.key) {
     return NextResponse.json({ error: "Roli nuk u ndërrua. Provoni sërish." }, { status: 500 });
   }
+  await recordAudit("ROLE_SWITCH", {
+    ...auditActor(session),
+    role: option.role,
+    login: session.user.username,
+    targetLabel: ROLE_LABELS[option.role] + (option.orgUnit ? ` · ${option.orgUnit}` : ""),
+    details: session.user.needsRole ? "Zgjodhi rolin pas hyrjes" : `Nga: ${ROLE_LABELS[session.user.role]}`,
+  });
   return NextResponse.json({ role: option.role, orgUnit: option.orgUnit });
 }

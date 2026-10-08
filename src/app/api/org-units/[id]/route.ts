@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { canManageUsers } from "@/lib/constants";
 import { orgUnitNameSchema } from "@/lib/org-unit-schema";
-import { renameOrgUnit, setOrgUnitActive } from "@/lib/repo";
+import { listOrgUnits, renameOrgUnit, setOrgUnitActive } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,11 +25,28 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   try {
+    const before = (await listOrgUnits()).find((u) => u.id === id);
     const unit =
       "name" in parsed.data
         ? await renameOrgUnit(id, parsed.data.name)
         : await setOrgUnitActive(id, parsed.data.active);
     if (!unit) return NextResponse.json({ error: "Drejtoria nuk u gjet" }, { status: 404 });
+    if ("name" in parsed.data) {
+      if (before?.name !== unit.name) {
+        await recordAudit("ORG_UNIT_RENAMED", {
+          ...auditActor(session),
+          targetId: id,
+          targetLabel: unit.name,
+          details: `Emri i vjetër: ${before?.name ?? "—"}`,
+        });
+      }
+    } else if (before?.active !== unit.active) {
+      await recordAudit(unit.active ? "ORG_UNIT_ACTIVATED" : "ORG_UNIT_DEACTIVATED", {
+        ...auditActor(session),
+        targetId: id,
+        targetLabel: unit.name,
+      });
+    }
     return NextResponse.json(unit);
   } catch (e) {
     if (e instanceof Error && e.message === "EXISTS") {

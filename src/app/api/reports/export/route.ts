@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { canViewReports } from "@/lib/constants";
 import { buildReport, filterRange, parseReportFilter, reportCsv } from "@/lib/reports";
 import { getReportData, listOrgUnits } from "@/lib/repo";
@@ -19,6 +20,11 @@ export async function GET(req: Request) {
   const filter = parseReportFilter(sp, (await listOrgUnits()).map((o) => o.name));
   const type = TYPES.has(sp.type) ? sp.type : "tasks";
   const report = buildReport(await getReportData(filterRange(filter)), filter);
+  await recordAudit("REPORT_EXPORTED", {
+    ...auditActor(session),
+    targetLabel: `CSV · ${type}`,
+    details: `${filter.from} – ${filter.to}${filter.orgUnit ? ` · ${filter.orgUnit}` : ""}`,
+  });
 
   return new NextResponse(reportCsv(report, type), {
     headers: {

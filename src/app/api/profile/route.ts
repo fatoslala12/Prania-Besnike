@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { changePassword, getUser, setEmailNotifications } from "@/lib/repo";
 
@@ -57,10 +58,21 @@ export async function PATCH(req: Request) {
 
   const result = await changePassword(userId, pw.data.currentPassword, pw.data.newPassword);
   if (result === "WRONG_PASSWORD") {
+    await recordAudit("PASSWORD_CHANGED", {
+      ...auditActor(session),
+      login: session.user.username,
+      success: false,
+      reason: "Fjalëkalimi aktual i gabuar",
+    });
     return NextResponse.json({ error: "Fjalëkalimi aktual nuk është i saktë." }, { status: 400 });
   }
   if (result === "NOT_FOUND") {
     return NextResponse.json({ error: "Nuk u gjet" }, { status: 404 });
   }
+  await recordAudit("PASSWORD_CHANGED", {
+    ...auditActor(session),
+    login: session.user.username,
+    details: session.user.mustChangePassword ? "Ndryshim i detyruar pas fjalëkalimit të përkohshëm" : null,
+  });
   return NextResponse.json({ ok: true });
 }

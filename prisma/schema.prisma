@@ -206,6 +206,30 @@ model TaskComment {
   author   User   @relation(fields: [authorId], references: [id])
 }
 
+/// Regjistri i aktivitetit (vetëm Super Administratori e sheh). Pa lidhje të huaja:
+/// regjistrimet mbeten edhe kur përdoruesi ndryshon ose fshihet; fshihen pas AUDIT_RETENTION_DAYS.
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  action      String
+  module      String
+  success     Boolean  @default(true)
+  reason      String?
+  login       String?
+  userId      String?
+  userName    String?
+  role        String?
+  ip          String?
+  userAgent   String?
+  targetId    String?
+  targetLabel String?
+  details     String?  @db.Text
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([userId, createdAt])
+}
+
 model Document {
   id           String   @id @default(cuid())
   filename     String

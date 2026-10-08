@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
 import { z } from "zod";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { actorOf } from "@/lib/auth-helpers";
 import { MAIL_DISABLED_ERROR, mailToCitizen } from "@/lib/citizen-mail";
 import { rateLimit } from "@/lib/rate-limit";
@@ -61,5 +62,11 @@ export async function POST(req: Request, { params }: Params) {
 
   const sent = await markDocumentSent(id, docId, task.citizenEmail, new Date());
   await logTaskEvent(task.id, documentEmailEvent(doc.originalName, task.citizenEmail), actorOf(session));
+  await recordAudit("DOCUMENT_SENT", {
+    ...auditActor(session),
+    targetId: task.id,
+    targetLabel: `${task.number} · ${doc.originalName}`,
+    details: `Te ${task.citizenEmail}`,
+  });
   return NextResponse.json({ ok: true, to: task.citizenEmail, document: sent });
 }

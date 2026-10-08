@@ -93,6 +93,11 @@ export function canManageUsers(role: Role) {
   return role === "ADMIN";
 }
 
+/** Regjistri i hyrjeve (IP, pajisje) dhe analiza e njoftimeve: vetëm Super Administratori. */
+export function canViewActivity(role: Role) {
+  return role === "ADMIN";
+}
+
 export function canAccessTask(
   user: { id: string; role: Role; orgUnit?: string | null },
   task: { assigneeId: string | null; orgUnit: string | null },

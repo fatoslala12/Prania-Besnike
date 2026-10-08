@@ -262,11 +262,12 @@ export default async function ReportsPage({
             hint="Kërkesa të krijuara dhe të përfunduara në periudhë"
             filter={filter}
           />
-          <div className="mt-4 flex h-44 items-end gap-[2px] overflow-x-auto pb-1">
+          <div dir="rtl" className="no-scrollbar mt-4 flex h-44 flex-row-reverse items-end gap-[2px] overflow-x-auto pb-1">
             {r.trend.buckets.map((b) => (
               <div
                 key={b.key}
-                className="flex min-w-[10px] flex-1 flex-col items-center justify-end gap-1"
+                dir="ltr"
+                className="flex min-w-[8px] flex-1 flex-col items-center justify-end gap-1"
                 title={`${b.label}: ${b.created} krijuar · ${b.completed} përfunduar`}
               >
                 <div className="flex h-36 w-full items-end justify-center gap-[1px]">

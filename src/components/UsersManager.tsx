@@ -2,7 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, KeyRound, Loader2, Mail, Pencil, Plus, Search, UserCheck, UserX, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  KeyRound,
+  Loader2,
+  Mail,
+  Pencil,
+  Plus,
+  Search,
+  UserCheck,
+  UserPlus,
+  UserX,
+  X,
+} from "lucide-react";
 import { MessageNotice, Notice, type NoticeMessage } from "@/components/Notice";
 import { ROLE_LABELS, shortOrgUnit } from "@/lib/constants";
 import type { ExtraRole, Role, UserView } from "@/lib/types";
@@ -82,6 +96,7 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<Role>("PERFAQESUES");
+  const [open, setOpen] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,8 +124,21 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
   }
 
   return (
-    <form onSubmit={onSubmit} className="surface-card space-y-4 p-4 sm:p-6 lg:self-start">
-      <h2 className="text-lg font-bold">Shto përdorues</h2>
+    <form onSubmit={onSubmit} className="surface-card p-4 sm:p-6 lg:self-start">
+      <h2 className="mb-4 hidden text-lg font-bold md:block">Shto përdorues</h2>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between text-left md:hidden"
+      >
+        <span className="inline-flex items-center gap-2 text-base font-bold">
+          <UserPlus className="h-5 w-5 text-brand" />
+          Shto përdorues
+        </span>
+        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      <div className={`${open ? "block" : "hidden"} mt-4 space-y-4 md:mt-0 md:block`}>
       <div>
         <label className="label" htmlFor="name">
           Emri
@@ -191,6 +219,7 @@ function CreateUserForm({ units, onCreated }: { units: UnitOption[]; onCreated: 
       <button type="submit" disabled={loading} className="btn-primary disabled:opacity-60">
         {loading ? "Duke ruajtur..." : "Krijo"}
       </button>
+      </div>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/lib/audit";
 import { actorOf } from "@/lib/auth-helpers";
 import { MAIL_DISABLED_ERROR, mailPdfToCitizen } from "@/lib/citizen-mail";
 import { requestPdf } from "@/lib/pdf";
@@ -40,5 +41,11 @@ export async function POST(_req: Request, { params }: Params) {
   }
 
   await logTaskEvent(task.id, emailEvent(task.number, task.citizenEmail, "kërkesës"), actorOf(session));
+  await recordAudit("REQUEST_PDF_SENT", {
+    ...auditActor(session),
+    targetId: task.id,
+    targetLabel: `${task.number} · ${task.title}`,
+    details: `Te ${task.citizenEmail}`,
+  });
   return NextResponse.json({ ok: true, to: task.citizenEmail });
 }

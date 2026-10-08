@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { canManageUsers } from "@/lib/constants";
+import { auditActor, recordAudit } from "@/lib/audit";
+import { ROLE_LABELS, canManageUsers } from "@/lib/constants";
 import { countActiveAdmins, getAnyUser, removeUserRole } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string; roleId: string }> };
@@ -35,5 +36,11 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const user = await removeUserRole(id, roleId);
   if (!user) return bad("Roli nuk u gjet", 404);
+  await recordAudit("USER_ROLE_REMOVED", {
+    ...auditActor(session),
+    targetId: id,
+    targetLabel: `${target.name} (${target.username})`,
+    details: ROLE_LABELS[extra.role] + (extra.orgUnit ? ` · ${extra.orgUnit}` : ""),
+  });
   return NextResponse.json(user);
 }
