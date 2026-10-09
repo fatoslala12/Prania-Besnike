@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { IDLE_TIMEOUT_LABEL } from "@/lib/idle";
 
 export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
   const router = useRouter();
@@ -12,6 +13,7 @@ export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
   const requested = searchParams.get("callbackUrl") || "";
   const callbackUrl =
     requested.startsWith("/") && !requested.startsWith("//") ? requested : "/panel";
+  const timedOut = searchParams.get("arsye") === "pasivitet";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -43,6 +45,12 @@ export function LoginForm({ showDemo = false }: { showDemo?: boolean }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {timedOut && !error && (
+        <Notice tone="info">
+          U nxorët automatikisht pas {IDLE_TIMEOUT_LABEL} pa aktivitet, për sigurinë e të dhënave. Hyni sërish për
+          të vazhduar aty ku e latë.
+        </Notice>
+      )}
       <div>
         <label className="label" htmlFor="login">
           * Email ose përdoruesi

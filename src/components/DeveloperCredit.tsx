@@ -1,4 +1,8 @@
+/** Shënimi i zhvilluesit është fshehur përkohësisht; `true` e rikthen kudo. */
+export const SHOW_DEVELOPER_CREDIT = false;
+
 export function DeveloperCredit({ className = "" }: { className?: string }) {
+  if (!SHOW_DEVELOPER_CREDIT) return null;
   return (
     <a
       href="https://lalvexa.al/"

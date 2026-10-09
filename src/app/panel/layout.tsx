@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { Eye } from "lucide-react";
 import { requireSession } from "@/lib/auth-helpers";
 import { isReadOnlyRole } from "@/lib/constants";
-import { DeveloperCredit } from "@/components/DeveloperCredit";
+import { DeveloperCredit, SHOW_DEVELOPER_CREDIT } from "@/components/DeveloperCredit";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
+import { IdleLogout } from "@/components/IdleLogout";
 import { PanelNav } from "@/components/PanelNav";
 
 export default async function PanelLayout({
@@ -26,6 +27,7 @@ export default async function PanelLayout({
 
   return (
     <div className="flex min-h-full flex-col bg-bg">
+      <IdleLogout />
       <PanelNav
         user={{
           name: session.user.name,
@@ -47,9 +49,11 @@ export default async function PanelLayout({
         {children}
       </main>
       <footer className="mx-auto w-full max-w-6xl px-3 pb-24 pt-2 text-center sm:px-4 md:pb-6">
-        <div className="border-t border-line pt-4">
-          <DeveloperCredit />
-        </div>
+        {SHOW_DEVELOPER_CREDIT && (
+          <div className="border-t border-line pt-4">
+            <DeveloperCredit />
+          </div>
+        )}
       </footer>
     </div>
   );

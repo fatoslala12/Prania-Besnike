@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isIdleExpired } from "@/lib/idle";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,8 +12,9 @@ export async function proxy(request: NextRequest) {
     (await getToken({ req: request, secret, secureCookie: true })) ??
     (await getToken({ req: request, secret, secureCookie: false }));
 
-  if (!token) {
+  if (!token || isIdleExpired(token.lastSeen)) {
     const url = new URL("/hyr", request.url);
+    if (token) url.searchParams.set("arsye", "pasivitet");
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }

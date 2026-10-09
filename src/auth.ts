@@ -2,7 +2,9 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { recordAudit } from "@/lib/audit";
+import { IDLE_LOGOUT_COOKIE, IDLE_TIMEOUT_LABEL, isIdleExpired } from "@/lib/idle";
 import { findAnyUserByLogin, findUserById, findUserByLogin } from "@/lib/repo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { Role } from "@/lib/types";
@@ -45,6 +47,19 @@ declare module "next-auth/jwt" {
     sessionVersion?: number;
     activeRole?: string | null;
     roleCount?: number;
+    /** Herën e fundit që shfletuesi raportoi veprim të përdoruesit (ms). */
+    lastSeen?: number;
+  }
+}
+
+async function idleLogoutRequested() {
+  try {
+    const jar = await cookies();
+    if (jar.get(IDLE_LOGOUT_COOKIE)?.value !== "idle") return false;
+    jar.delete(IDLE_LOGOUT_COOKIE);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -142,9 +157,13 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
         token.sessionVersion = user.sessionVersion;
         token.roleCount = user.roleCount;
         token.activeRole = user.roleCount > 1 ? null : PRIMARY_ROLE_KEY;
+        token.lastSeen = Date.now();
         return token;
       }
       if (!token.id) return null;
+      // Rrjedh vetëm nga veprimet e përdoruesit (ping/ndërrim roli), jo nga kërkesat e sfondit.
+      if (isIdleExpired(token.lastSeen)) return null;
+      if (trigger === "update" || typeof token.lastSeen !== "number") token.lastSeen = Date.now();
       const fresh = await findUserById(token.id);
       if (!fresh || !fresh.active || fresh.sessionVersion !== (token.sessionVersion ?? 0)) {
         return null;
@@ -188,11 +207,13 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
     async signOut(message) {
       const token = "token" in message ? message.token : null;
       if (!token?.id) return;
-      await recordAudit("LOGOUT", {
+      const idle = await idleLogoutRequested();
+      await recordAudit(idle ? "SESSION_TIMEOUT" : "LOGOUT", {
         userId: token.id,
         userName: token.name ?? null,
         role: token.role,
         login: token.username,
+        details: idle ? `Pas ${IDLE_TIMEOUT_LABEL} pa aktivitet` : null,
       });
     },
   },

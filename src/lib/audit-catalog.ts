@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = {
   LOGIN_SUCCESS: { label: "Hyrje e suksesshme", module: "AUTH" },
   LOGIN_FAILED: { label: "Hyrje e dështuar", module: "AUTH" },
   LOGOUT: { label: "Dalje", module: "AUTH" },
+  SESSION_TIMEOUT: { label: "Doli automatikisht (pasivitet)", module: "AUTH" },
   ROLE_SWITCH: { label: "Ndërroi rolin", module: "AUTH" },
   PASSWORD_CHANGED: { label: "Ndryshoi fjalëkalimin", module: "AUTH" },
   PASSWORD_RESET_REQUESTED: { label: "Kërkoi rivendosje fjalëkalimi", module: "AUTH" },
