@@ -274,3 +274,26 @@ body {
 .prose-legal li {
   margin-bottom: 0.4rem;
 }
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  /* Pa këtë, Chrome nuk printon ngjyrat e grafikëve dhe statuseve kur "Background graphics" është i fikur. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .surface-card {
+    box-shadow: none;
+    border-color: var(--line);
+    border-radius: 0.6rem;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+}

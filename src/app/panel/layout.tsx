@@ -26,7 +26,7 @@ export default async function PanelLayout({
   const orgUnit = session.user.orgUnit ?? null;
 
   return (
-    <div className="flex min-h-full flex-col bg-bg">
+    <div className="flex min-h-full flex-col bg-bg print:bg-white">
       <IdleLogout />
       <PanelNav
         user={{
@@ -45,10 +45,10 @@ export default async function PanelLayout({
           ndryshoni asgjë.
         </div>
       )}
-      <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 sm:px-4 sm:py-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 sm:px-4 sm:py-8 print:max-w-none print:p-0">
         {children}
       </main>
-      <footer className="mx-auto w-full max-w-6xl px-3 pb-24 pt-2 text-center sm:px-4 md:pb-6">
+      <footer className="mx-auto w-full max-w-6xl px-3 pb-24 pt-2 text-center sm:px-4 md:pb-6 print:hidden">
         {SHOW_DEVELOPER_CREDIT && (
           <div className="border-t border-line pt-4">
             <DeveloperCredit />

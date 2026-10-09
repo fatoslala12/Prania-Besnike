@@ -1,6 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { format, startOfMonth, startOfYear, subDays } from "date-fns";
-import { Download } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth-helpers";
 import {
@@ -22,6 +23,7 @@ import {
   type ReportFilter,
 } from "@/lib/reports";
 import { getReportData, listOrgUnits, listUsers } from "@/lib/repo";
+import type { ExcelSheet } from "@/lib/report-excel";
 import { MobileFilters } from "@/components/MobileFilters";
 import { PrintButton } from "@/components/PrintButton";
 import type { TaskStatus } from "@/lib/types";
@@ -46,14 +48,18 @@ function day(d: Date) {
   return format(d, "yyyy-MM-dd");
 }
 
-function CsvLink({ filter, type }: { filter: ReportFilter; type: string }) {
+function excelHref(filter: ReportFilter, sheet: ExcelSheet = "summary") {
+  return `/api/reports/excel?${filterQuery(filter, { sheet })}`;
+}
+
+function ExcelLink({ filter, sheet }: { filter: ReportFilter; sheet: ExcelSheet }) {
   return (
     <a
-      href={`/api/reports/export?${filterQuery(filter, { type })}`}
+      href={excelHref(filter, sheet)}
       className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline print:hidden"
     >
-      <Download className="h-3.5 w-3.5" />
-      CSV
+      <FileSpreadsheet className="h-3.5 w-3.5" />
+      Excel
     </a>
   );
 }
@@ -67,15 +73,15 @@ function SectionHead({
   title: string;
   hint?: string;
   filter: ReportFilter;
-  type?: string;
+  type?: ExcelSheet;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 className="text-lg font-bold">{title}</h2>
+        <h2 className="text-lg font-bold print:text-base">{title}</h2>
         {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
       </div>
-      {type && <CsvLink filter={filter} type={type} />}
+      {type && <ExcelLink filter={filter} sheet={type} />}
     </div>
   );
 }
@@ -116,12 +122,24 @@ export default async function ReportsPage({
   ];
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div className="space-y-5 sm:space-y-6 print:space-y-4">
+      <style>{"@media print { @page { size: A4 landscape; margin: 10mm 10mm 12mm; } }"}</style>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between print:flex-row print:items-center print:justify-start print:gap-4 print:border-b-2 print:border-brand print:pb-3">
+        <Image
+          src="/mshms-logo.png"
+          alt=""
+          width={74}
+          height={56}
+          className="hidden h-14 w-auto print:block"
+        />
         <div>
-          <p className="section-kicker">Raportim</p>
-          <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">Raporte</h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="section-kicker print:hidden">Raportim</p>
+          <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl print:hidden">Raporte</h1>
+          <p className="hidden text-xl font-extrabold text-brand print:block">Raport i kërkesave</p>
+          <p className="hidden text-xs font-semibold text-ink print:block">
+            Prania Besnike · Ministria e Shëndetësisë dhe Mbrojtjes Sociale
+          </p>
+          <p className="mt-1 text-sm text-muted print:text-xs">
             Periudha {format(new Date(`${filter.from}T00:00:00`), "dd.MM.yyyy")} –{" "}
             {format(new Date(`${filter.to}T00:00:00`), "dd.MM.yyyy")}
             {filter.orgUnit && ` · ${filter.orgUnit === "none" ? "Pa delegim" : filter.orgUnit}`}
@@ -132,11 +150,11 @@ export default async function ReportsPage({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row print:hidden">
           <a
-            href={`/api/reports/export?${filterQuery(filter, { type: "tasks" })}`}
+            href={excelHref(filter)}
             className="btn-primary inline-flex items-center justify-center gap-1.5 !py-2 text-sm"
           >
-            <Download className="h-4 w-4" />
-            Eksporto Excel (CSV)
+            <FileSpreadsheet className="h-4 w-4" />
+            Shkarko Excel
           </a>
           <PrintButton />
         </div>
@@ -209,24 +227,24 @@ export default async function ReportsPage({
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button type="submit" className="btn-primary !py-2 text-sm">Gjenero raportin</button>
+          <button type="submit" className="btn-primary !py-2 text-sm">Apliko filtrat</button>
           <Link href="/panel/raporte" className="btn-ghost !py-2 text-center text-sm">Pastro filtrat</Link>
         </div>
         </MobileFilters>
       </form>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6 print:grid-cols-6 print:gap-2">
         {kpis.map((k) => (
-          <div key={k.label} className="surface-card p-4">
+          <div key={k.label} className="surface-card p-4 print:break-inside-avoid print:border-l-4 print:border-l-brand print:p-3">
             <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted">{k.label}</p>
-            <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-ink">{k.value}</p>
+            <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-ink print:text-xl">{k.value}</p>
             <p className="mt-1 text-[0.7rem] text-muted">{k.sub}</p>
           </div>
         ))}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="surface-card min-w-0 p-4 sm:p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5 print:break-inside-avoid print:p-3">
           <SectionHead title="Shpërndarja sipas statusit" filter={filter} />
           <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-zinc-100">
             {r.statuses.map((s) =>
@@ -256,13 +274,13 @@ export default async function ReportsPage({
           </ul>
         </section>
 
-        <section className="surface-card min-w-0 p-4 sm:p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5 print:break-inside-avoid print:p-3">
           <SectionHead
             title={r.trend.monthly ? "Trendi mujor" : "Trendi ditor"}
             hint="Kërkesa të krijuara dhe të përfunduara në periudhë"
             filter={filter}
           />
-          <div dir="rtl" className="no-scrollbar mt-4 flex h-44 flex-row-reverse items-end gap-[2px] overflow-x-auto pb-1">
+          <div dir="rtl" className="no-scrollbar mt-4 flex h-44 flex-row-reverse items-end gap-[2px] overflow-x-auto pb-1 print:overflow-visible">
             {r.trend.buckets.map((b) => (
               <div
                 key={b.key}
@@ -287,7 +305,7 @@ export default async function ReportsPage({
         </section>
       </div>
 
-      <section className="surface-card min-w-0 p-4 sm:p-5">
+      <section className="surface-card min-w-0 p-4 sm:p-5 print:break-inside-avoid print:p-3">
         <SectionHead
           title="Sipas drejtorisë / agjencisë"
           hint="Sa kërkesa janë gjeneruar për secilën njësi dhe si janë trajtuar"
@@ -321,8 +339,8 @@ export default async function ReportsPage({
             </li>
           ))}
         </ul>
-        <div className="mt-4 hidden overflow-x-auto md:block print:block">
-          <table className="min-w-full text-sm">
+        <div className="mt-4 hidden overflow-x-auto md:block print:block print:overflow-visible">
+          <table className="min-w-full text-sm print:text-xs">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-2 pr-3 font-semibold">Njësia</th>
@@ -363,16 +381,16 @@ export default async function ReportsPage({
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="surface-card min-w-0 p-4 sm:p-5">
+      <div className="grid gap-5 print:gap-3">
+        <section className="surface-card min-w-0 p-4 sm:p-5 print:break-inside-avoid print:p-3">
           <SectionHead
             title="Sa ka gjeneruar secili"
             hint="Kërkesat sipas personit që i regjistroi"
             filter={filter}
             type="creators"
           />
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="mt-4 overflow-x-auto print:overflow-visible">
+            <table className="min-w-full text-sm print:text-xs">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                   <th className="py-2 pr-3 font-semibold">Gjeneruar nga</th>
@@ -400,15 +418,15 @@ export default async function ReportsPage({
           </div>
         </section>
 
-        <section className="surface-card min-w-0 p-4 sm:p-5">
+        <section className="surface-card min-w-0 p-4 sm:p-5 print:break-inside-avoid print:p-3">
           <SectionHead
             title="Aktiviteti i përdoruesve"
             hint="Veprimet e kryera në periudhë (krijime, statuse, ri-delegime, komente, dokumente)"
             filter={filter}
             type="activity"
           />
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="mt-4 overflow-x-auto print:overflow-visible">
+            <table className="min-w-full text-sm print:text-xs">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                   <th className="py-2 pr-3 font-semibold">Përdoruesi</th>
@@ -443,10 +461,10 @@ export default async function ReportsPage({
         </section>
       </div>
 
-      <section className="surface-card min-w-0 p-4 sm:p-5">
+      <section className="surface-card min-w-0 p-4 sm:p-5 print:p-3">
         <SectionHead
           title={`Lista e kërkesave (${r.tasks.length})`}
-          hint={r.tasks.length > 200 ? "Shfaqen 200 të fundit — eksportoni CSV për listën e plotë" : undefined}
+          hint={r.tasks.length > 200 ? "Shfaqen 200 të fundit — shkarkoni Excel për listën e plotë" : undefined}
           filter={filter}
           type="tasks"
         />
@@ -471,8 +489,8 @@ export default async function ReportsPage({
             </li>
           ))}
         </ul>
-        <div className="mt-4 hidden overflow-x-auto md:block print:block">
-          <table className="min-w-full text-sm">
+        <div className="mt-4 hidden overflow-x-auto md:block print:block print:overflow-visible">
+          <table className="min-w-full text-sm print:text-xs">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-2 pr-3 font-semibold">ID</th>
@@ -489,17 +507,17 @@ export default async function ReportsPage({
                 <tr><td colSpan={7} className="py-6 text-center text-muted">Nuk ka kërkesa për këto filtra.</td></tr>
               )}
               {r.tasks.slice(0, 200).map((task) => (
-                <tr key={task.id} className="align-top">
-                  <td className="py-2.5 pr-3">
+                <tr key={task.id} className="align-top print:break-inside-avoid">
+                  <td className="whitespace-nowrap py-2.5 pr-3 print:py-1.5">
                     <Link href={`/panel/detyra/${task.id}`} className="font-mono text-xs font-bold text-brand hover:underline">
                       {task.number}
                     </Link>
                   </td>
                   <td className="px-2 py-2.5 whitespace-nowrap text-muted">{format(new Date(task.createdAt), "dd.MM.yyyy")}</td>
                   <td className="px-2 py-2.5">
-                    <span className="line-clamp-2 max-w-xs">{task.title}</span>
+                    <span className="line-clamp-2 max-w-xs print:line-clamp-none print:max-w-none">{task.title}</span>
                   </td>
-                  <td className="px-2 py-2.5 whitespace-nowrap">{task.orgUnit ? shortOrgUnit(task.orgUnit) : "—"}</td>
+                  <td className="px-2 py-2.5 whitespace-nowrap print:whitespace-normal">{task.orgUnit ? shortOrgUnit(task.orgUnit) : "—"}</td>
                   <td className="px-2 py-2.5">
                     <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE[task.status]}`}>
                       {STATUS_LABELS[task.status]}
